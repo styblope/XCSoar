@@ -156,11 +156,11 @@ UploadFile(Path igc_path, StaticString<0x1000> &msg) noexcept
     // read the important data from json in a structure
     flight_data = UploadJsonInterpreter(instance.value);
 
-    msg.Format(_("File upload '%s' was successful"), igc_path.c_str());
+    msg.Format(_("File upload '%s' was successful"), igc_path.GetBase().c_str());
     return flight_data;  // upload successful!
   }
   catch (const std::exception &e) {
-    msg.Format(_("'%s' - %s"), igc_path.c_str(),
+    msg.Format(_("'%s' - %s"), igc_path.GetBase().c_str(),
       UTF8ToWideConverter(e.what()).c_str());
     return flight_data;  // with flight_id = 0!
   }
