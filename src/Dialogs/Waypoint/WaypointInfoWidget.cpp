@@ -116,7 +116,12 @@ WaypointInfoWidget::Prepare(ContainerWindow &parent,
   }
 
   if (waypoint->runway.IsDirectionDefined())
-    buffer.UnsafeFormat(_T("%02u"), waypoint->runway.GetDirectionName());
+  {
+    unsigned int dirname = waypoint->runway.GetDirectionName();
+    if (dirname > 18)
+      dirname -= 18;
+    buffer.UnsafeFormat(_T("%02u/%02u"), dirname, dirname + 18);
+  }
   else
     buffer.clear();
 
