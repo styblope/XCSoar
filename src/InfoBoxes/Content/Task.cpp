@@ -301,6 +301,7 @@ UpdateInfoBoxNextAltitudeDiff(InfoBoxData &data) noexcept
   const auto &next_solution = task_stats.current_leg.solution_remaining;
 
   SetValueFromAltDiff(data, task_stats, next_solution);
+  data.FormatComment(_T("MC %.1f"), task_stats.effective_mc);
 }
 
 void
@@ -325,6 +326,7 @@ UpdateInfoBoxNextAltitudeRequire(InfoBoxData &data) noexcept
   }
 
   data.SetValueFromAltitude(next_solution.GetRequiredAltitude());
+  data.FormatComment(_T("MC %.1f"), task_stats.effective_mc);
 }
 
 void
@@ -431,6 +433,7 @@ UpdateInfoBoxFinalAltitudeDiff(InfoBoxData &data) noexcept
   const TaskStats &task_stats = CommonInterface::Calculated().task_stats;
 
   SetValueFromAltDiff(data, task_stats, task_stats.total.solution_remaining);
+  data.FormatComment(_T("MC %.1f"), task_stats.effective_mc);
 }
 
 void
@@ -453,6 +456,7 @@ UpdateInfoBoxFinalAltitudeRequire(InfoBoxData &data) noexcept
   }
 
   data.SetValueFromAltitude(task_stats.total.solution_remaining.GetRequiredAltitude());
+  data.FormatComment(_T("MC %.1f"), task_stats.effective_mc);
 }
 
 void
