@@ -33,6 +33,9 @@
 #pragma once
 
 #include "Cast.hxx"
+#include "Concepts.hxx"
+#include "MemberPointer.hxx"
+#include "OptionalCounter.hxx"
 #include "ShallowCopy.hxx"
 
 #include <iterator>
@@ -40,7 +43,7 @@
 #include <utility>
 
 struct IntrusiveForwardListNode {
-	IntrusiveForwardListNode *next = nullptr;
+	IntrusiveForwardListNode *next;
 };
 
 struct IntrusiveForwardListHook {
@@ -55,30 +58,90 @@ struct IntrusiveForwardListHook {
 	}
 };
 
+/**
+ * For classes which embed #IntrusiveForwardListHook as base class.
+ */
 template<typename T>
-class IntrusiveForwardList {
-	IntrusiveForwardListNode head;
-
+struct IntrusiveForwardListBaseHookTraits {
 	static constexpr T *Cast(IntrusiveForwardListNode *node) noexcept {
-		static_assert(std::is_base_of<IntrusiveForwardListHook, T>::value);
+		static_assert(std::is_base_of_v<IntrusiveForwardListHook, T>);
 		auto *hook = &IntrusiveForwardListHook::Cast(*node);
 		return static_cast<T *>(hook);
 	}
 
 	static constexpr const T *Cast(const IntrusiveForwardListNode *node) noexcept {
-		static_assert(std::is_base_of<IntrusiveForwardListHook, T>::value);
+		static_assert(std::is_base_of_v<IntrusiveForwardListHook, T>);
 		const auto *hook = &IntrusiveForwardListHook::Cast(*node);
 		return static_cast<const T *>(hook);
 	}
 
 	static constexpr IntrusiveForwardListHook &ToHook(T &t) noexcept {
-		static_assert(std::is_base_of<IntrusiveForwardListHook, T>::value);
+		static_assert(std::is_base_of_v<IntrusiveForwardListHook, T>);
 		return t;
 	}
 
 	static constexpr const IntrusiveForwardListHook &ToHook(const T &t) noexcept {
-		static_assert(std::is_base_of<IntrusiveForwardListHook, T>::value);
+		static_assert(std::is_base_of_v<IntrusiveForwardListHook, T>);
 		return t;
+	}
+};
+
+/**
+ * For classes which embed #IntrusiveForwardListHook as member.
+ */
+template<auto member>
+struct IntrusiveForwardListMemberHookTraits {
+	using T = MemberPointerContainerType<decltype(member)>;
+	using Hook = IntrusiveForwardListHook;
+
+	static_assert(std::is_same_v<MemberPointerType<decltype(member)>, Hook>);
+
+	static constexpr T *Cast(IntrusiveForwardListNode *node) noexcept {
+		auto &hook = Hook::Cast(*node);
+		return &ContainerCast(hook, member);
+	}
+
+	static constexpr const T *Cast(const IntrusiveForwardListNode *node) noexcept {
+		const auto &hook = Hook::Cast(*node);
+		return &ContainerCast(hook, member);
+	}
+
+	static constexpr auto &ToHook(T &t) noexcept {
+		return t.*member;
+	}
+
+	static constexpr const auto &ToHook(const T &t) noexcept {
+		return t.*member;
+	}
+};
+
+/**
+ * @param constant_time_size make size() constant-time by caching the
+ * number of items in a field?
+ */
+template<typename T,
+	 typename HookTraits=IntrusiveForwardListBaseHookTraits<T>,
+	 bool constant_time_size=false>
+class IntrusiveForwardList {
+	IntrusiveForwardListNode head{nullptr};
+
+	[[no_unique_address]]
+	OptionalCounter<constant_time_size> counter;
+
+	static constexpr T *Cast(IntrusiveForwardListNode *node) noexcept {
+		return HookTraits::Cast(node);
+	}
+
+	static constexpr const T *Cast(const IntrusiveForwardListNode *node) noexcept {
+		return HookTraits::Cast(node);
+	}
+
+	static constexpr IntrusiveForwardListHook &ToHook(T &t) noexcept {
+		return HookTraits::ToHook(t);
+	}
+
+	static constexpr const IntrusiveForwardListHook &ToHook(const T &t) noexcept {
+		return HookTraits::ToHook(t);
 	}
 
 	static constexpr IntrusiveForwardListNode &ToNode(T &t) noexcept {
@@ -90,17 +153,33 @@ class IntrusiveForwardList {
 	}
 
 public:
+	using value_type = T;
+	using reference = T &;
+	using const_reference = const T &;
+	using pointer = T *;
+	using const_pointer = const T *;
+	using size_type = std::size_t;
+
 	IntrusiveForwardList() = default;
 
 	IntrusiveForwardList(IntrusiveForwardList &&src) noexcept
-		:head{std::exchange(src.head.next, nullptr)} {}
+		:head{std::exchange(src.head.next, nullptr)}
+	{
+		using std::swap;
+		swap(counter, src.counter);
+	}
 
 	constexpr IntrusiveForwardList(ShallowCopy, const IntrusiveForwardList &src) noexcept
-		:head(src.head) {}
+		:head(src.head)
+	{
+		// shallow copies mess with the counter
+		static_assert(!constant_time_size);
+	}
 
 	IntrusiveForwardList &operator=(IntrusiveForwardList &&src) noexcept {
 		using std::swap;
 		swap(head, src.head);
+		swap(counter, counter);
 		return *this;
 	}
 
@@ -108,12 +187,19 @@ public:
 		return head.next == nullptr;
 	}
 
-	void clear() noexcept {
-		head = {};
+	constexpr size_type size() const noexcept {
+		if constexpr (constant_time_size)
+			return counter;
+		else
+			return std::distance(begin(), end());
 	}
 
-	template<typename D>
-	void clear_and_dispose(D &&disposer) noexcept {
+	void clear() noexcept {
+		head = {};
+		counter.reset();
+	}
+
+	void clear_and_dispose(Disposer<value_type> auto disposer) noexcept {
 		while (!empty()) {
 			auto *item = &front();
 			pop_front();
@@ -121,16 +207,17 @@ public:
 		}
 	}
 
-	const T &front() const noexcept {
+	const_reference front() const noexcept {
 		return *Cast(head.next);
 	}
 
-	T &front() noexcept {
+	reference front() noexcept {
 		return *Cast(head.next);
 	}
 
 	void pop_front() noexcept {
 		head.next = head.next->next;
+		--counter;
 	}
 
 	class const_iterator;
@@ -161,11 +248,11 @@ public:
 			return !(*this == other);
 		}
 
-		constexpr T &operator*() const noexcept {
+		constexpr reference operator*() const noexcept {
 			return *Cast(cursor);
 		}
 
-		constexpr T *operator->() const noexcept {
+		constexpr pointer operator->() const noexcept {
 			return Cast(cursor);
 		}
 
@@ -215,11 +302,11 @@ public:
 			return !(*this == other);
 		}
 
-		constexpr const T &operator*() const noexcept {
+		constexpr reference operator*() const noexcept {
 			return *Cast(cursor);
 		}
 
-		constexpr const T *operator->() const noexcept {
+		constexpr pointer operator->() const noexcept {
 			return Cast(cursor);
 		}
 
@@ -233,13 +320,17 @@ public:
 		return {head.next};
 	}
 
-	void push_front(T &t) noexcept {
+	void push_front(reference t) noexcept {
 		auto &new_node = ToNode(t);
 		new_node.next = head.next;
 		head.next = &new_node;
+		++counter;
 	}
 
-	static iterator insert_after(iterator pos, T &t) noexcept {
+	static iterator insert_after(iterator pos, reference t) noexcept {
+		// no counter update in this static method
+		static_assert(!constant_time_size);
+
 		auto &pos_node = *pos.cursor;
 		auto &new_node = ToNode(t);
 		new_node.next = pos_node.next;
@@ -249,6 +340,7 @@ public:
 
 	void erase_after(iterator pos) noexcept {
 		pos.cursor->next = pos.cursor->next->next;
+		--counter;
 	}
 
 	void reverse() noexcept {

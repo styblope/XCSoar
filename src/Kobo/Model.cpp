@@ -30,7 +30,8 @@ Copyright_License {
 #include <stdio.h>
 
 static bool
-ReadFromFile(const char *path, off_t offset, void *buffer, size_t size)
+ReadFromFile(const char *path, off_t offset,
+             void *buffer, size_t size) noexcept
 {
   const int fd = open(path, O_RDONLY|O_NOCTTY|O_CLOEXEC);
   if (fd < 0) {
@@ -65,11 +66,14 @@ static constexpr struct {
   { "SN-N437", KoboModel::GLO_HD },
   { "SN-RN437", KoboModel::GLO_HD },
   { "SN-N249", KoboModel::CLARA_HD },
+  { "SN-N506", KoboModel::CLARA_2E },
   { "SN-N306", KoboModel::NIA },
+  { "SN-N418", KoboModel::LIBRA2 },
+  { "SN-N873", KoboModel::LIBRA_H2O },
 };
 
 static KoboModel
-DetectKoboModel(const char *p)
+DetectKoboModel(const char *p) noexcept
 {
   for (const auto &i : kobo_model_ids)
     if (memcmp(p, i.id, strlen(i.id)) == 0)
@@ -79,11 +83,25 @@ DetectKoboModel(const char *p)
 }
 
 KoboModel
-DetectKoboModel()
+DetectKoboModel() noexcept
 {
   char buffer[16];
   if (!ReadFromFile("/dev/mmcblk0", 0x200, buffer, sizeof(buffer)))
     return KoboModel::UNKNOWN;
 
   return DetectKoboModel(buffer);
+}
+
+const char *
+GetKoboWifiInterface() noexcept
+{
+  switch (DetectKoboModel())
+  {
+    case KoboModel::LIBRA2:
+      return "wlan0";
+    case KoboModel::CLARA_2E:
+      return "mlan0";
+    default:
+      return "eth0";
+  }
 }

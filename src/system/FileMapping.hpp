@@ -24,6 +24,7 @@ Copyright_License {
 #pragma once
 
 #include <cstddef>
+#include <span>
 
 #ifndef HAVE_POSIX
 #include <windef.h>
@@ -35,11 +36,10 @@ class Path;
  * Maps a file into the address space of this process.
  */
 class FileMapping {
-  void *m_data = nullptr;
-  size_t m_size;
+  std::span<std::byte> span;
 
 #ifndef HAVE_POSIX
-  HANDLE hFile, hMapping = nullptr;
+  HANDLE hFile, hMapping;
 #endif
 
 public:
@@ -53,25 +53,7 @@ public:
   FileMapping(const FileMapping &) = delete;
   FileMapping &operator=(const FileMapping &) = delete;
 
-  /**
-   * Returns a pointer to the beginning of the mapping.
-   */
-  const void *data() const noexcept {
-    return m_data;
-  }
-
-  const void *at(size_t offset) const noexcept {
-    return (const char *)data() + offset;
-  }
-
-  const void *end() const noexcept {
-    return at(size());
-  }
-
-  /**
-   * Returns the size of the file, in bytes.
-   */
-  size_t size() const noexcept {
-    return m_size;
+  operator std::span<const std::byte>() const noexcept {
+    return span;
   }
 };

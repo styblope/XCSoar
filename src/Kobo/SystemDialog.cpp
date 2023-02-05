@@ -29,7 +29,10 @@ Copyright_License {
 #include "Language/Language.hpp"
 #include "Widget/RowFormWidget.hpp"
 #include "System.hpp"
+
+#ifdef KOBO
 #include "Model.hpp"
+#endif
 
 #include "system/FileUtil.hpp"
 
@@ -91,7 +94,9 @@ inline void
 SystemWidget::SwitchOTGMode()
 {
 #ifdef KOBO
-  if (DetectKoboModel() == KoboModel::CLARA_HD) {
+  KoboModel kobo_model = DetectKoboModel();
+  if (kobo_model == KoboModel::CLARA_HD || kobo_model == KoboModel::CLARA_2E
+      || kobo_model == KoboModel::LIBRA2 || kobo_model == KoboModel::LIBRA_H2O) {
     bool success;
     if (IsKoboOTGHostMode()) {
       success = File::WriteExisting(Path("/sys/kernel/debug/ci_hdrc.0/role"),

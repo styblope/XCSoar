@@ -31,6 +31,7 @@ Copyright_License {
 
 #ifdef KOBO
 #include "system/FileUtil.hpp"
+#include "Kobo/Model.hpp"
 #endif
 
 #ifdef ENABLE_OPENGL
@@ -101,22 +102,63 @@ Display::Rotate(DisplayOrientation orientation)
                                               android_orientation);
 #elif defined(KOBO)
   const char *rotate = "3";
+  KoboModel kobo_model = DetectKoboModel();
 
   switch (orientation) {
   case DisplayOrientation::DEFAULT:
   case DisplayOrientation::PORTRAIT:
+    switch(kobo_model) {
+    case KoboModel::LIBRA2:
+      rotate = "1";
+      break;
+    case KoboModel::LIBRA_H2O:
+      rotate = "0";
+      break;
+    default:
+      rotate = "3";
+      break;
+    }
     break;
-
   case DisplayOrientation::REVERSE_PORTRAIT:
-    rotate = "1";
+    switch(kobo_model) {
+    case KoboModel::LIBRA2:
+      rotate = "3";
+      break;
+    case KoboModel::LIBRA_H2O:
+      rotate = "2";
+      break;
+    default:
+      rotate = "1";
+      break;
+    }
     break;
 
   case DisplayOrientation::LANDSCAPE:
-    rotate = "0";
+    switch(kobo_model) {
+    case KoboModel::LIBRA2:
+      rotate = "2";
+      break;
+    case KoboModel::LIBRA_H2O:
+      rotate = "1";
+      break;
+    default:
+      rotate = "0";
+      break;
+    }
     break;
 
   case DisplayOrientation::REVERSE_LANDSCAPE:
-    rotate = "2";
+    switch(kobo_model) {
+    case KoboModel::LIBRA2:
+      rotate = "0";
+      break;
+    case KoboModel::LIBRA_H2O:
+      rotate = "3";
+      break;
+    default:
+      rotate = "2";
+      break;
+    }
     break;
   };
 

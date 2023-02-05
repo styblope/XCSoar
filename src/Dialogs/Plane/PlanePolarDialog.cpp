@@ -169,14 +169,12 @@ PlanePolarWidget::ListClicked()
   for (const auto &i : internal_polars)
     list.Append(i.name);
 
-  list.Sort();
-
   // let the user select
   int result = ComboPicker(_("Load Polar"), list, NULL);
   if (result < 0)
     return;
 
-  const PolarStore::Item &item = internal_polars[result];
+  const PolarStore::Item &item = internal_polars[list[result].int_value];
 
   plane.polar_shape.reference_mass = item.reference_mass;
   plane.empty_mass = item.empty_mass;
@@ -190,7 +188,7 @@ PlanePolarWidget::ListClicked()
 
   plane.polar_shape = item.ToPolarShape();
 
-  plane.polar_name = list[result].string_value.c_str();
+  plane.polar_name = item.name;
 
   if (item.contest_handicap > 0)
     plane.handicap = item.contest_handicap;

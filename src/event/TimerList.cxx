@@ -54,15 +54,7 @@ TimerList::~TimerList() noexcept
 void
 TimerList::Insert(FineTimerEvent &t) noexcept
 {
-#ifdef NO_BOOST
-	auto i = std::find_if(timers.begin(), timers.end(), [due = t.GetDue()](const auto &other){
-		return other.GetDue() >= due;
-	});
-
-	timers.insert(i, t);
-#else
 	timers.insert(t);
-#endif
 }
 
 Event::Duration

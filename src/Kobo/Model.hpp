@@ -23,6 +23,10 @@ Copyright_License {
 
 #pragma once
 
+#ifndef KOBO
+#error This header is only for Kobo builds
+#endif
+
 enum class KoboModel {
   UNKNOWN,
   MINI,
@@ -33,9 +37,16 @@ enum class KoboModel {
   GLO,
   GLO_HD,
   CLARA_HD,
+  CLARA_2E,
   NIA,
+  LIBRA2,
+  LIBRA_H2O,
 };
 
 [[gnu::const]]
 KoboModel
-DetectKoboModel();
+DetectKoboModel() noexcept;
+
+[[gnu::const]]
+const char *
+GetKoboWifiInterface() noexcept;

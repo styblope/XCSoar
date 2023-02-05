@@ -22,7 +22,6 @@ Copyright_License {
 */
 
 #include "System.hpp"
-#include "Model.hpp"
 #include "system/FileUtil.hpp"
 #include "system/PathName.hpp"
 #include "system/Process.hpp"
@@ -33,6 +32,8 @@ Copyright_License {
 #include <sys/stat.h>
 
 #ifdef KOBO
+
+#include "Model.hpp"
 
 #include <sys/mount.h>
 #include <errno.h>
@@ -70,9 +71,11 @@ bool
 KoboReboot()
 {
 #ifdef KOBO
-  /* CLARA_HD requires the -f option to for reboot to work */
-  if  (DetectKoboModel() == KoboModel::CLARA_HD)
+  KoboModel kobo_model = DetectKoboModel();
+  if  (kobo_model == KoboModel::CLARA_HD || kobo_model == KoboModel::CLARA_2E
+      || kobo_model == KoboModel::LIBRA2|| kobo_model == KoboModel::LIBRA_H2O)
   {
+    /* some models require the -f option for reboot to work */
     return Run("/sbin/reboot", "-f");
   }
   return Run("/sbin/reboot");
@@ -151,6 +154,9 @@ KoboExportUSBStorage()
     break;
 
   case KoboModel::CLARA_HD:
+  case KoboModel::CLARA_2E:
+  case KoboModel::LIBRA2:
+  case KoboModel::LIBRA_H2O:
     InsMod("/drivers/mx6sll-ntx/usb/gadget/configfs.ko");
     InsMod("/drivers/mx6sll-ntx/usb/gadget/libcomposite.ko");
     InsMod("/drivers/mx6sll-ntx/usb/gadget/usb_f_mass_storage.ko");
@@ -178,7 +184,9 @@ void
 KoboUnexportUSBStorage()
 {
 #ifdef KOBO
-  if(DetectKoboModel() == KoboModel::CLARA_HD)
+  KoboModel kobo_model = DetectKoboModel();
+  if(kobo_model == KoboModel::CLARA_HD || kobo_model == KoboModel::CLARA_2E
+      || kobo_model == KoboModel::LIBRA2 || kobo_model == KoboModel::LIBRA_H2O)
   {
     RmMod("g_file_storage");
     RmMod("usb_f_mass_storage");
@@ -198,7 +206,9 @@ bool
 IsKoboWifiOn()
 {
 #ifdef KOBO
-  return Directory::Exists(Path("/sys/class/net/eth0"));
+  char path[64];
+  sprintf(path, "/sys/class/net/%s", GetKoboWifiInterface());
+  return Directory::Exists(Path{path});
 #else
   return false;
 #endif
@@ -232,6 +242,7 @@ KoboWifiOn()
     break;
 
   case KoboModel::CLARA_HD:
+  case KoboModel::LIBRA_H2O:
     InsMod("/drivers/mx6sll-ntx/wifi/sdio_wifi_pwr.ko");
     InsMod("/drivers/mx6sll-ntx/wifi/8189fs.ko");
     break;
@@ -240,20 +251,36 @@ KoboWifiOn()
     InsMod("/drivers/mx6ull-ntx/wifi/sdio_wifi_pwr.ko");
     InsMod("/drivers/mx6ull-ntx/wifi/8189fs.ko");
     break;
+
+  case KoboModel::LIBRA2:
+    InsMod("/drivers/mx6sll-ntx/wifi/sdio_wifi_pwr.ko");
+    InsMod("/drivers/mx6sll-ntx/wifi/8723ds.ko");
+    break;
+
+  case KoboModel::CLARA_2E:
+    InsMod("/drivers/mx6sll-ntx/wifi/sdio_wifi_pwr.ko");
+    InsMod("/drivers/mx6sll-ntx/wifi/mlan.ko");
+    InsMod("/drivers/mx6sll-ntx/wifi/moal.ko", "mod_para=nxp/wifi_mod_para_sd8987.conf");
+    break;
   }
 
   Sleep(2000);
 
-  Run("/sbin/ifconfig", "eth0", "up");
-  Run("/sbin/iwconfig", "eth0", "power", "off");
-  Run("/bin/wlarm_le", "-i", "eth0", "up");
-  Run("/bin/wpa_supplicant", "-i", "eth0",
+  const char *interface = GetKoboWifiInterface();
+  const char *driver = (DetectKoboModel() == KoboModel::LIBRA2
+    || DetectKoboModel() == KoboModel::CLARA_2E) ? "nl80211" : "wext";
+
+  Run("/sbin/ifconfig", interface, "up");
+  Run("/sbin/iwconfig", interface, "power", "off");
+  if (DetectKoboModel() != KoboModel::CLARA_2E)
+    Run("/bin/wlarm_le", "-i", interface, "up");
+  Run("/bin/wpa_supplicant", "-i", interface,
       "-c", "/etc/wpa_supplicant/wpa_supplicant.conf",
-      "-C", "/var/run/wpa_supplicant", "-B", "-D", "wext");
+      "-C", "/var/run/wpa_supplicant", "-B", "-D", driver);
 
   Sleep(2000);
 
-  Start("/sbin/udhcpc", "-S", "-i", "eth0",
+  Start("/sbin/udhcpc", "-S", "-i", interface,
         "-s", "/etc/udhcpc.d/default.script",
         "-t15", "-T10", "-A3", "-f", "-q");
 
@@ -267,9 +294,11 @@ bool
 KoboWifiOff()
 {
 #ifdef KOBO
+  const char *interface =  GetKoboWifiInterface();
   Run("/usr/bin/killall", "wpa_supplicant", "udhcpc");
-  Run("/bin/wlarm_le", "-i", "eth0", "down");
-  Run("/sbin/ifconfig", "eth0", "down");
+  if (DetectKoboModel() != KoboModel::CLARA_2E)
+    Run("/bin/wlarm_le", "-i", interface, "down");
+  Run("/sbin/ifconfig", interface, "down");
 
   RmMod("dhd");
   RmMod("8189fs");
@@ -338,6 +367,8 @@ KoboCanChangeBacklightBrightness()
 #ifdef KOBO
   switch (DetectKoboModel()) {
     case KoboModel::GLO_HD:
+    case KoboModel::LIBRA2:
+    case KoboModel::CLARA_2E:
       return true;
     default:
       return false;
@@ -356,6 +387,12 @@ KoboGetBacklightBrightness()
   switch (DetectKoboModel()) {
     case KoboModel::GLO_HD:
       if (File::ReadString(Path("/sys/class/backlight/mxc_msp430_fl.0/brightness"), line, sizeof(line))) {
+        result = atoi(line);
+      }
+      break;
+    case KoboModel::LIBRA2:
+    case KoboModel::CLARA_2E:
+      if (File::ReadString(Path("/sys/class/backlight/mxc_msp430.0/brightness"), line, sizeof(line))) {
         result = atoi(line);
       }
       break;
@@ -380,6 +417,10 @@ KoboSetBacklightBrightness([[maybe_unused]] int percent)
   switch (DetectKoboModel()) {
     case KoboModel::GLO_HD:
       File::WriteExisting(Path("/sys/class/backlight/mxc_msp430_fl.0/brightness"), std::to_string(percent).c_str());
+      break;
+    case KoboModel::LIBRA2:
+    case KoboModel::CLARA_2E:
+      File::WriteExisting(Path("/sys/class/backlight/mxc_msp430.0/brightness"), std::to_string(percent).c_str());
       break;
     default:
       // nothing to do here...

@@ -29,6 +29,10 @@ Copyright_License {
 
 #include <algorithm>
 
+#ifdef KOBO
+#include "Kobo/Model.hpp"
+#endif
+
 namespace UI {
 
 /**
@@ -71,23 +75,54 @@ public:
 
   void SetDisplayOrientation(DisplayOrientation orientation) {
     SetSwap(AreAxesSwapped(orientation));
+#ifdef KOBO
+    KoboModel kobo_model = DetectKoboModel();
+#endif
 
     switch (TranslateDefaultDisplayOrientation(orientation)) {
     case DisplayOrientation::DEFAULT:
     case DisplayOrientation::PORTRAIT:
-      SetInvert(true, false);
+#ifdef KOBO
+      if (kobo_model == KoboModel::LIBRA2)
+        SetInvert(false, false);
+      else if (kobo_model == KoboModel::LIBRA_H2O)
+        SetInvert(true, false);
+      else
+#endif
+        SetInvert(true, false);
       break;
 
     case DisplayOrientation::LANDSCAPE:
-      SetInvert(false, false);
+#ifdef KOBO
+      if (kobo_model == KoboModel::LIBRA2)
+        SetInvert(false, true);
+      else if (kobo_model == KoboModel::LIBRA_H2O)
+        SetInvert(false, false);
+      else
+#endif
+        SetInvert(false, false);
       break;
 
     case DisplayOrientation::REVERSE_PORTRAIT:
-      SetInvert(false, true);
+#ifdef KOBO
+      if (kobo_model == KoboModel::LIBRA2)
+        SetInvert(true, true);
+      else if (kobo_model == KoboModel::LIBRA_H2O)
+        SetInvert(false, true);
+      else
+#endif
+        SetInvert(false, true);
       break;
 
     case DisplayOrientation::REVERSE_LANDSCAPE:
-      SetInvert(true, true);
+#ifdef KOBO
+      if (kobo_model == KoboModel::LIBRA2)
+        SetInvert(true, false);
+      else if (kobo_model == KoboModel::LIBRA_H2O)
+        SetInvert(true, true);
+      else
+#endif
+        SetInvert(true, true);
       break;
     }
   }
