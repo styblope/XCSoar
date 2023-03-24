@@ -1,25 +1,5 @@
-/*
-Copyright_License {
-
-  XCSoar Glide Computer - http://www.xcsoar.org/
-  Copyright (C) 2000-2021 The XCSoar Project
-  A detailed list of copyright holders can be found in the file "AUTHORS".
-
-  This program is free software; you can redistribute it and/or
-  modify it under the terms of the GNU General Public License
-  as published by the Free Software Foundation; either version 2
-  of the License, or (at your option) any later version.
-
-  This program is distributed in the hope that it will be useful,
-  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  GNU General Public License for more details.
-
-  You should have received a copy of the GNU General Public License
-  along with this program; if not, write to the Free Software
-  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-}
-*/
+// SPDX-License-Identifier: GPL-2.0-or-later
+// Copyright The XCSoar Project
 
 #include "TrailRenderer.hpp"
 #include "Look/TrailLook.hpp"
@@ -171,26 +151,26 @@ TrailRenderer::Draw(Canvas &canvas, const TraceComputer &trace_computer,
         if (it->GetVario() < 0 &&
             (settings.type == TrailSettings::Type::VARIO_1_DOTS ||
              settings.type == TrailSettings::Type::VARIO_2_DOTS ||
-             settings.type == TrailSettings::Type::VARIO_DOTS_AND_LINES)) {
+             settings.type == TrailSettings::Type::VARIO_DOTS_AND_LINES ||
+             settings.type == TrailSettings::Type::VARIO_EINK)) {
           canvas.SelectNullPen();
           canvas.Select(look.trail_brushes[color_index]);
           canvas.DrawCircle({(pt.x + last_point.x) / 2, (pt.y + last_point.y) / 2},
                             look.trail_widths[color_index]);
         } else {
           // positive vario case
-
-          if (settings.type == TrailSettings::Type::VARIO_DOTS_AND_LINES) {
+          if (settings.type == TrailSettings::Type::VARIO_DOTS_AND_LINES ||
+              settings.type == TrailSettings::Type::VARIO_EINK) {
             canvas.Select(look.trail_brushes[color_index]);
             canvas.Select(look.trail_pens[color_index]); //fixed-width pen
             canvas.DrawCircle({(pt.x + last_point.x) / 2, (pt.y + last_point.y) / 2},
-                              look.trail_widths[color_index]);
+                            look.trail_widths[color_index]);
           } else if (scaled_trail)
             // width scaled to vario
             canvas.Select(look.scaled_trail_pens[color_index]);
           else
             // fixed-width pen
             canvas.Select(look.trail_pens[color_index]);
-
           canvas.DrawLinePiece(last_point, pt);
         }
       }
