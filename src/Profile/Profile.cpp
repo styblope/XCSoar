@@ -34,7 +34,7 @@ Profile::Load() noexcept
 {
   assert(startProfileFile != nullptr);
 
-  LogFormat("Loading profiles");
+  LogString("Loading profiles");
   LoadFile(startProfileFile);
   SetModified(false);
 }
@@ -56,7 +56,7 @@ Profile::Save() noexcept
   if (!IsModified())
     return;
 
-  LogFormat("Saving profiles");
+  LogString("Saving profiles");
   if (startProfileFile == nullptr)
     SetFiles(nullptr);
 
@@ -70,7 +70,7 @@ Profile::Save() noexcept
 }
 
 void
-Profile::SaveFile(Path path) noexcept
+Profile::SaveFile(Path path)
 {
   LogFormat(_T("Saving profile to %s"), path.c_str());
   SaveFile(map, path);
@@ -102,19 +102,19 @@ Profile::SetFiles(Path override_path) noexcept
 }
 
 AllocatedPath
-Profile::GetPath(const char *key) noexcept
+Profile::GetPath(std::string_view key) noexcept
 {
   return map.GetPath(key);
 }
 
 bool
-Profile::GetPathIsEqual(const char *key, Path value) noexcept
+Profile::GetPathIsEqual(std::string_view key, Path value) noexcept
 {
   return map.GetPathIsEqual(key, value);
 }
 
 void
-Profile::SetPath(const char *key, Path value) noexcept
+Profile::SetPath(std::string_view key, Path value) noexcept
 {
   map.SetPath(key, value);
 }

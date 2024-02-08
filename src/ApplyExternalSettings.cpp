@@ -4,6 +4,7 @@
 #include "ApplyExternalSettings.hpp"
 #include "Interface.hpp"
 #include "Components.hpp"
+#include "BackendComponents.hpp"
 #include "ActionInterface.hpp"
 #include "Device/MultipleDevices.hpp"
 
@@ -91,8 +92,8 @@ QNHProcessTimer(OperationEnvironment &env) noexcept
     settings_computer.pressure = calculated.pressure;
     settings_computer.pressure_available = calculated.pressure_available;
 
-    if (devices != nullptr)
-      devices->PutQNH(settings_computer.pressure, env);
+    if (backend_components->devices)
+      backend_components->devices->PutQNH(settings_computer.pressure, env);
 
     modified = true;
   }
@@ -162,6 +163,24 @@ RadioProcess() noexcept
   return modified;
 }
 
+static bool
+TransponderProcess() noexcept
+{
+  bool modified = false;
+
+  const NMEAInfo &basic = CommonInterface::Basic();
+
+  static Validity last_transponder_code;
+
+  if (basic.settings.has_transponder_code.Modified(last_transponder_code)) {
+    ActionInterface::SetTransponderCode(basic.settings.transponder_code, false);
+    last_transponder_code = basic.settings.has_transponder_code;
+    modified = true;
+  }
+
+  return modified;
+}
+
 bool
 ApplyExternalSettings(OperationEnvironment &env) noexcept
 {
@@ -172,5 +191,6 @@ ApplyExternalSettings(OperationEnvironment &env) noexcept
   modified |= QNHProcessTimer(env);
   modified |= MacCreadyProcessTimer();
   modified |= RadioProcess();
+  modified |= TransponderProcess();
   return modified;
 }

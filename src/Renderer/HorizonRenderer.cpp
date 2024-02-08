@@ -2,13 +2,13 @@
 // Copyright The XCSoar Project
 
 #include "HorizonRenderer.hpp"
+#include "RadarRenderer.hpp"
 #include "ui/canvas/Canvas.hpp"
 #include "Screen/Layout.hpp"
 #include "Look/HorizonLook.hpp"
 #include "NMEA/Attitude.hpp"
 #include "Math/Constants.hpp"
 #include "Math/Util.hpp"
-#include "util/Clamp.hpp"
 
 #include <algorithm>
 
@@ -29,10 +29,11 @@ HorizonRenderer::Draw(Canvas &canvas, const PixelRect &rc,
   is the case or not.
   */
 
-  const auto center = rc.GetCenter();
+  RadarRenderer radar_renderer{Layout::Scale(1U)};
+  radar_renderer.UpdateLayout(rc);
 
-  const int radius = std::min(rc.GetWidth(), rc.GetHeight()) / 2
-    - Layout::Scale(1);
+  const auto center = radar_renderer.GetCenter();
+  const int radius = radar_renderer.GetRadius();
 
   auto bank_degrees = attitude.bank_angle_available
     ? attitude.bank_angle.Degrees()
@@ -42,23 +43,26 @@ HorizonRenderer::Draw(Canvas &canvas, const PixelRect &rc,
     ? attitude.pitch_angle.Degrees()
     : 0.;
 
-  auto phi = Clamp(bank_degrees, -89., 89.);
-  auto alpha = Angle::acos(Clamp(pitch_degrees / 50,
-                                 -1., 1.));
-  auto sphi = Angle::HalfCircle() - Angle::Degrees(phi);
+  auto cosine_ratio = pitch_degrees / 50;
+  auto alpha = Angle::acos(std::clamp(cosine_ratio, -1., 1.));
+  auto sphi = Angle::HalfCircle() - Angle::Degrees(bank_degrees);
   auto alpha1 = sphi - alpha;
   auto alpha2 = sphi + alpha;
 
   // draw sky part
-  canvas.Select(look.sky_pen);
-  canvas.Select(look.sky_brush);
-  canvas.DrawSegment(center, radius, alpha2, alpha1, true);
+  if (cosine_ratio > -1 ) { // when less than -1 then the sky is not visible
+    canvas.Select(look.sky_pen);
+    canvas.Select(look.sky_brush);
+    canvas.DrawSegment(center, radius, alpha2, alpha1, true);
+  }
 
   // draw ground part
-  canvas.Select(look.terrain_pen);
-  canvas.Select(look.terrain_brush);
-  canvas.DrawSegment(center, radius, alpha1, alpha2, true);
-
+  if (cosine_ratio < 1) { // when greater than 1 then the ground is not visible
+    canvas.Select(look.terrain_pen);
+    canvas.Select(look.terrain_brush);
+    canvas.DrawSegment(center, radius, alpha1, alpha2, true);
+  }
+  
   // draw aircraft symbol
   canvas.Select(look.aircraft_pen);
   canvas.DrawLine({center.x + radius / 2, center.y}, {center.x - radius / 2, center.y});

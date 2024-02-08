@@ -96,7 +96,7 @@ CAI302Device::ReadPilotList(std::vector<CAI302::Pilot> &list,
 
   const unsigned block_count = 8;
 
-  uint8_t buffer[1024];
+  std::byte buffer[1024];
 
   for (unsigned i = 0; i < count; i += block_count) {
     unsigned this_block = std::min(count - i, block_count);
@@ -105,7 +105,7 @@ CAI302Device::ReadPilotList(std::vector<CAI302::Pilot> &list,
     if (n != this_block)
       return false;
 
-    const uint8_t *p = buffer;
+    const std::byte *p = buffer;
     for (unsigned j = 0; j < n; ++j, p += record_size)
       list.push_back(*(const CAI302::Pilot *)p);
   }
@@ -223,7 +223,8 @@ CAI302Device::WriteNavpoint(unsigned id, const Waypoint &wp,
   ToASCII(remark, ARRAY_SIZE(remark), wp.comment.c_str());
 
   try {
-    CAI302::DownloadNavpoint(port, wp.location, (int)wp.elevation, id,
+    CAI302::DownloadNavpoint(port, wp.location, (int)wp.GetElevationOrZero(),
+                             id,
                              wp.IsTurnpoint(), wp.IsAirport(), false,
                              wp.IsLandable(), wp.IsStartpoint(),
                              wp.IsFinishpoint(), wp.flags.home,

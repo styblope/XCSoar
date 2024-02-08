@@ -3,5 +3,7 @@
 
 #pragma once
 
+class Replay;
+
 void
-ShowReplayDialog();
+ShowReplayDialog(Replay &replay) noexcept;

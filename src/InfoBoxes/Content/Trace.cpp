@@ -10,16 +10,17 @@
 #include "Renderer/TaskProgressRenderer.hpp"
 #include "ui/dim/Rect.hpp"
 #include "Formatter/UserUnits.hpp"
-#include "Components.hpp"
 #include "Interface.hpp"
 #include "Screen/Layout.hpp"
 #include "UIGlobals.hpp"
 #include "Look/Look.hpp"
 #include "Computer/GlideComputer.hpp"
 #include "Dialogs/dlgAnalysis.hpp"
-#include "util/Macros.hpp"
 #include "Language/Language.hpp"
 #include "Widget/CallbackWidget.hpp"
+#include "Components.hpp"
+#include "BackendComponents.hpp"
+#include "DataComponents.hpp"
 
 [[gnu::const]]
 static PixelRect
@@ -116,8 +117,7 @@ InfoBoxContentBarogram::Update(InfoBoxData &data) noexcept
   TCHAR sTmp[32];
 
   if (basic.NavAltitudeAvailable()) {
-    FormatUserAltitude(basic.nav_altitude, sTmp,
-                       ARRAY_SIZE(sTmp));
+    FormatUserAltitude(basic.nav_altitude, sTmp);
     data.SetComment(sTmp);
   } else
     data.SetCommentInvalid();
@@ -137,9 +137,10 @@ InfoBoxContentBarogram::OnCustomPaint(Canvas &canvas, const PixelRect &rc) noexc
   RenderBarographSpark(canvas, GetSparkRect(rc),
                        look.chart, look.cross_section,
                        look.info_box.inverse,
-                       glide_computer->GetFlightStats(),
+                       backend_components->glide_computer->GetFlightStats(),
                        CommonInterface::Basic(),
-                       CommonInterface::Calculated(), protected_task_manager);
+                       CommonInterface::Calculated(),
+                       backend_components->protected_task_manager.get());
 }
 
 static void
@@ -147,9 +148,11 @@ ShowAnalysisBarograph() noexcept
 {
   dlgAnalysisShowModal(UIGlobals::GetMainWindow(),
                        UIGlobals::GetLook(),
-                       CommonInterface::Full(), *glide_computer,
-                       &airspace_database,
-                       terrain, AnalysisPage::BAROGRAPH);
+                       CommonInterface::Full(),
+                       *backend_components->glide_computer,
+                       data_components->airspaces.get(),
+                       data_components->terrain.get(),
+                       AnalysisPage::BAROGRAPH);
 }
 
 static std::unique_ptr<Widget>

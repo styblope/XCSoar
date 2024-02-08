@@ -12,10 +12,6 @@
 #include <time.h>
 #endif
 
-/**
- * Determine the time zone offset in a portable way.
- */
-[[gnu::const]]
 int
 GetTimeZoneOffset() noexcept
 {

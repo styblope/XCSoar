@@ -9,9 +9,11 @@
 #include "NMEA/Info.hpp"
 #include "Device/Port/Port.hpp"
 #include "NMEA/InputLine.hpp"
-#include "util/Clamp.hpp"
 #include "Atmosphere/Pressure.hpp"
 #include "Operation/Operation.hpp"
+
+#include <algorithm> // for std::clamp()
+
 #include <math.h>
 
 using std::string_view_literals::operator""sv;
@@ -99,7 +101,7 @@ XVCDevice::PXCV(NMEAInputLine &line, NMEAInfo &info)
 
   // Bugs setting as entered in XCVario
   if (line.ReadChecked(value))
-    info.settings.ProvideBugs(1 - Clamp(value, 0., 30.) / 100.,
+    info.settings.ProvideBugs(1 - std::clamp(value, 0., 30.) / 100.,
                               info.clock);
 
   // legacy reading of fractional water ballast in protocol version 1
@@ -234,7 +236,7 @@ XVCDevice::PutQNH(const AtmosphericPressure &pres, OperationEnvironment &env)
   char buffer[32];
   unsigned qnh = uround(pres.GetHectoPascal());
   int msg_len = sprintf(buffer,"!g,q%u\r", std::min(qnh,(unsigned)2000));
-  port.FullWrite(buffer, msg_len, env, std::chrono::seconds(2));
+  port.FullWrite(std::as_bytes(std::span{buffer}.first(msg_len)), env, std::chrono::seconds(2));
   return true;
 }
 
@@ -262,10 +264,10 @@ XVCDevice::PutBallast(double fraction, [[maybe_unused]] double overload,
 {
   /* the XCVario understands CAI302 like command for ballast "!g,b" with
      float precision */
-   char buffer[32];
-   double ballast = fraction * 10.;
-   int msg_len = sprintf(buffer,"!g,b%.3f\r", ballast);
-   port.FullWrite(buffer, msg_len, env, std::chrono::seconds(2));
+  char buffer[32];
+  double ballast = fraction * 10.;
+  int msg_len = sprintf(buffer,"!g,b%.3f\r", ballast);
+  port.FullWrite(std::as_bytes(std::span{buffer}.first(msg_len)), env, std::chrono::seconds(2));
   return true;
 }
 

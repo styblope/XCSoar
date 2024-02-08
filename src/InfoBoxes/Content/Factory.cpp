@@ -22,6 +22,7 @@
 #include "InfoBoxes/Content/Weather.hpp"
 #include "InfoBoxes/Content/Airspace.hpp"
 #include "InfoBoxes/Content/Radio.hpp"
+#include "InfoBoxes/Content/Engine.hpp"
 
 #include "util/Macros.hpp"
 #include "Language/Language.hpp"
@@ -1085,6 +1086,46 @@ static constexpr MetaData meta_data[] = {
     N_("Heart"),
     N_("Heart rate in beats per minute."),
     UpdateInfoBoxHeartRate,
+  },
+
+  // Transponder code
+  {
+    N_("Transponder Code"),
+    N_("XPDR Code"),
+    N_("The currently set Transponder code"),
+    IBFHelper<InfoBoxContentTransponderCode>::Create,
+  },
+
+  // e_EngineTempCHT
+  {
+    N_("Engine CHT"),
+    N_("CHT"),
+    N_("Engine Cylinder Head Temperature"),
+    UpdateInfoBoxContentCHT,
+  },
+
+  // e_EngineTempEGT
+  {
+    N_("Engine EGT"),
+    N_("EGT"),
+    N_("Engine Exhaust Gas Temperature"),
+    UpdateInfoBoxContentEGT,
+  },
+
+  // e_EngineRPM
+  {
+    N_("Engine Revolutions Per Minute"),
+    N_("RPM"),
+    N_("Engine Revolutions Per Minute."),
+    UpdateInfoBoxContentRPM,
+  },
+
+  // e_AAT_dT_or_ETA
+  {
+    N_("AAT dT and task ETA"),
+    N_("AATdeltaOrETA"),
+    N_("Shows AAT delta time and estimated time of arrival in case of AAT task, and estimated time of arrival in case of racing task"),
+    UpdateInfoTaskETAorAATdT,
   },
 
 };

@@ -12,7 +12,8 @@
 #endif
 
 #ifdef _WIN32
-# include <fileapi.h>
+# include "system/WindowsRegistry.hpp"
+# include "util/StringFormat.hpp"
 #endif
 
 #ifdef ANDROID
@@ -97,27 +98,69 @@ DetectSerialPorts(DataFieldEnum &df) noexcept
   return found;
 }
 
-#endif
+#elif defined(_WIN32)
 
-#if defined(_WIN32) && !defined(HAVE_POSIX)
-
+/**
+ * If this is a "COMx" name, parse "x" and return it; otherwise,
+ * return -1.
+ */
 [[gnu::pure]]
-static bool
-DosDeviceExists(const TCHAR *path) noexcept
+static int
+ComIndex(TCHAR *name) noexcept
 {
-  TCHAR dummy[MAX_PATH];
-  return QueryDosDevice(path, dummy, std::size(dummy)) > 0;
+  const TCHAR *suffix = StringAfterPrefix(name, _T("COM"));
+  if (suffix == nullptr)
+    return -1;
+
+  TCHAR *endptr;
+  const auto i = _tcstoul(suffix, &endptr, 10);
+  if (endptr == suffix || *endptr != _T('\0'))
+    return -1;
+
+  return static_cast<int>(i);
 }
 
 static void
-FillDefaultSerialPorts(DataFieldEnum &df) noexcept
-{
-  for (unsigned i = 1; i <= 10; ++i) {
-    TCHAR buffer[64];
-    _stprintf(buffer, _T("COM%u:"), i);
-    if (DosDeviceExists(buffer))
-       AddPort(df, DeviceConfig::PortType::SERIAL, buffer);
+DetectSerialPorts(DataFieldEnum &df) noexcept
+try {
+  /* the registry key HKEY_LOCAL_MACHINE/Hardware/DEVICEMAP/SERIALCOMM
+     is the best way to discover serial ports on Windows */
+
+  RegistryKey hardware{HKEY_LOCAL_MACHINE, _T("Hardware")};
+  RegistryKey devicemap{hardware, _T("DEVICEMAP")};
+  RegistryKey serialcomm{devicemap, _T("SERIALCOMM")};
+
+  for (unsigned i = 0;; ++i) {
+    TCHAR name[128];
+    TCHAR value[64];
+
+    DWORD type;
+    if (!serialcomm.EnumValue(i, std::span{name}, &type,
+                              std::as_writable_bytes(std::span{value})))
+      break;
+
+    if (type != REG_SZ)
+      // weird
+      continue;
+
+    const TCHAR *path = value;
+
+    TCHAR buffer[128];
+    if (const auto com_idx = ComIndex(value); com_idx >= 0) {
+      if (com_idx < 10)
+        /* old-style raw names (with trailing colon for backwards
+           compatibility with older XCSoar versions) */
+        StringFormatUnsafe(buffer, _T("%s:"), value);
+      else
+        /* COM10 and above must use UNC paths */
+        StringFormatUnsafe(buffer, _T("\\\\.\\%s"), value);
+      path = buffer;
+    }
+
+    AddPort(df, DeviceConfig::PortType::SERIAL, path, name);
   }
+} catch (const std::system_error &) {
+  // silently ignore registry errors
 }
 
 #endif
@@ -147,10 +190,8 @@ SetPort(DataFieldEnum &df, DeviceConfig::PortType type,
 static void
 FillSerialPorts(DataFieldEnum &df, const DeviceConfig &config) noexcept
 {
-#if defined(HAVE_POSIX)
+#if defined(HAVE_POSIX) || defined(_WIN32)
   DetectSerialPorts(df);
-#elif defined(_WIN32)
-  FillDefaultSerialPorts(df);
 #endif
 
   if (config.port_type == DeviceConfig::PortType::SERIAL)

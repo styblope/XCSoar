@@ -2,7 +2,7 @@
 // Copyright The XCSoar Project
 
 #include "TrackingConfigPanel.hpp"
-#include "Profile/ProfileKeys.hpp"
+#include "Profile/Keys.hpp"
 #include "Profile/Profile.hpp"
 #include "Form/Edit.hpp"
 #include "Form/DataField/Enum.hpp"
@@ -242,7 +242,7 @@ TrackingConfigPanel::Prepare(ContainerWindow &parent, const PixelRect &rc) noexc
 
 #ifdef HAVE_SKYLINES_TRACKING
 static bool
-SaveKey(const RowFormWidget &form, unsigned idx, const char *profile_key,
+SaveKey(const RowFormWidget &form, unsigned idx, std::string_view profile_key,
         uint64_t &value_r)
 {
   const TCHAR *const s = form.GetValueString(idx);

@@ -28,6 +28,7 @@ static Waypoint
 MakeWaypoint(Waypoint wp, double altitude) noexcept
 {
   wp.elevation = altitude;
+  wp.has_elevation = true;
   return wp;
 }
 
@@ -195,7 +196,7 @@ TestFlightToFinish(double aircraft_altitude)
 
   const TaskStats &stats = task.GetStats();
   ok1(stats.task_valid);
-  ok1(!stats.start.task_started);
+  ok1(!stats.start.HasStarted());
   ok1(!stats.task_finished);
   ok1(stats.flight_mode_final_glide == (stats.total.solution_remaining.altitude_difference >= 0));
   ok1(equals(stats.distance_nominal, vector.distance));
@@ -232,7 +233,7 @@ TestSimpleTask()
 
   const TaskStats &stats = task.GetStats();
   ok1(stats.task_valid);
-  ok1(!stats.start.task_started);
+  ok1(!stats.start.HasStarted());
   ok1(!stats.task_finished);
   ok1(!stats.flight_mode_final_glide);
   ok1(equals(stats.distance_nominal, tp1_to_tp2.distance));
@@ -253,6 +254,7 @@ TestHighFinish()
   task.Append(tp1);
   Waypoint wp2b(*wp2);
   wp2b.elevation = 1000;
+  wp2b.has_elevation = true;
   const FinishPoint tp2(std::make_unique<LineSectorZone>(wp2b.location),
                         WaypointPtr(new Waypoint(wp2b)), task_behaviour,
                         ordered_task_settings.finish_constraints, false);
@@ -269,7 +271,7 @@ TestHighFinish()
 
   const TaskStats &stats = task.GetStats();
   ok1(stats.task_valid);
-  ok1(!stats.start.task_started);
+  ok1(!stats.start.HasStarted());
   ok1(!stats.task_finished);
   ok1(!stats.flight_mode_final_glide);
   ok1(equals(stats.distance_nominal, vector.distance));
@@ -309,7 +311,7 @@ TestHighTP()
 
   const TaskStats &stats = task.GetStats();
   ok1(stats.task_valid);
-  ok1(!stats.start.task_started);
+  ok1(!stats.start.HasStarted());
   ok1(!stats.task_finished);
   ok1(!stats.flight_mode_final_glide);
 
@@ -343,7 +345,7 @@ TestHighTPFinal()
 
   const TaskStats &stats = task.GetStats();
   ok1(stats.task_valid);
-  ok1(!stats.start.task_started);
+  ok1(!stats.start.HasStarted());
   ok1(!stats.task_finished);
   ok1(!stats.flight_mode_final_glide);
 
@@ -377,7 +379,7 @@ TestLowTPFinal()
 
   const TaskStats &stats = task.GetStats();
   ok1(stats.task_valid);
-  ok1(!stats.start.task_started);
+  ok1(!stats.start.HasStarted());
   ok1(!stats.task_finished);
   ok1(!stats.flight_mode_final_glide);
 

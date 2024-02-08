@@ -17,20 +17,23 @@
 #include "Renderer/NextArrowRenderer.hpp"
 #include "UIGlobals.hpp"
 #include "Look/Look.hpp"
+#include "BackendComponents.hpp"
+#include "DataComponents.hpp"
 
 #include <tchar.h>
 
 static void
 ShowNextWaypointDetails() noexcept
 {
-  if (protected_task_manager == nullptr)
+  if (!backend_components->protected_task_manager)
     return;
 
-  auto wp = protected_task_manager->GetActiveWaypoint();
+  auto wp = backend_components->protected_task_manager->GetActiveWaypoint();
   if (wp == nullptr)
     return;
 
-  dlgWaypointDetailsShowModal(std::move(wp), false);
+  dlgWaypointDetailsShowModal(data_components->waypoints.get(),
+                              std::move(wp), false);
 }
 
 static std::unique_ptr<Widget>
@@ -104,8 +107,8 @@ InfoBoxContentNextWaypoint::Update(InfoBoxData &data) noexcept
 {
   // use proper non-terminal next task stats
 
-  const auto way_point = protected_task_manager != nullptr
-    ? protected_task_manager->GetActiveWaypoint()
+  const auto way_point = backend_components->protected_task_manager
+    ? backend_components->protected_task_manager->GetActiveWaypoint()
     : nullptr;
 
   if (!way_point) {
@@ -119,8 +122,8 @@ InfoBoxContentNextWaypoint::Update(InfoBoxData &data) noexcept
   // Set Comment
   if (way_point->radio_frequency.IsDefined()) {
     const unsigned freq = way_point->radio_frequency.GetKiloHertz();
-    data.FormatComment(_T("%u.%03u %s"),
-                       freq / 1000, freq % 1000, way_point->comment.c_str());
+    data.FmtComment(_T("{}.{:03} {}"),
+                    freq / 1000, freq % 1000, way_point->comment);
   }
   else
     data.SetComment(way_point->comment.c_str());
@@ -153,8 +156,8 @@ InfoBoxContentNextWaypoint::GetDialogContent() noexcept
 void
 UpdateInfoBoxNextDistance(InfoBoxData &data) noexcept
 {
-  const auto way_point = protected_task_manager != nullptr
-    ? protected_task_manager->GetActiveWaypoint()
+  const auto way_point = backend_components->protected_task_manager
+    ? backend_components->protected_task_manager->GetActiveWaypoint()
     : nullptr;
 
   // Set title
@@ -187,8 +190,8 @@ UpdateInfoBoxNextDistance(InfoBoxData &data) noexcept
 void
 UpdateInfoBoxNextDistanceNominal(InfoBoxData &data) noexcept
 {
-  const auto way_point = protected_task_manager != nullptr
-    ? protected_task_manager->GetActiveWaypoint()
+  const auto way_point = backend_components->protected_task_manager
+    ? backend_components->protected_task_manager->GetActiveWaypoint()
     : nullptr;
 
   if (!way_point) {
@@ -251,10 +254,10 @@ UpdateInfoBoxNextETA(InfoBoxData &data) noexcept
     std::chrono::duration_cast<std::chrono::seconds>(task_stats.current_leg.solution_remaining.time_elapsed);
 
   // Set Value
-  data.UnsafeFormatValue(_T("%02u:%02u"), t.hour, t.minute);
+  data.FmtValue(_T("{:02}:{:02}"), t.hour, t.minute);
 
   // Set Comment
-  data.UnsafeFormatComment(_T("%02u"), t.second);
+  data.FmtComment(_T("{:02}"), t.second);
 }
 
 static void
@@ -401,10 +404,10 @@ UpdateInfoBoxFinalETA(InfoBoxData &data) noexcept
     std::chrono::duration_cast<std::chrono::seconds>(task_stats.total.solution_remaining.time_elapsed);
 
   // Set Value
-  data.UnsafeFormatValue(_T("%02u:%02u"), t.hour, t.minute);
+  data.FmtValue(_T("{:02}:{:02}"), t.hour, t.minute);
 
   // Set Comment
-  data.UnsafeFormatComment(_T("%02u"), t.second);
+  data.FmtComment(_T("{:02}"), t.second);
 }
 
 void
@@ -488,7 +491,7 @@ UpdateInfoBoxTaskSpeedHour(InfoBoxData &data) noexcept
 {
   const WindowStats &window =
     CommonInterface::Calculated().task_stats.last_hour;
-  if (window.duration < 0) {
+  if (!window.IsDefined()) {
     data.SetInvalid();
     return;
   }
@@ -661,10 +664,10 @@ UpdateInfoBoxTaskTimeUnderMaxHeight(InfoBoxData &data) noexcept
   const auto &calculated = CommonInterface::Calculated();
   const auto &task_stats = calculated.ordered_task_stats;
   const auto &common_stats = calculated.common_stats;
-  const double maxheight = protected_task_manager->GetOrderedTaskSettings().start_constraints.max_height;
+  const double maxheight = backend_components->protected_task_manager->GetOrderedTaskSettings().start_constraints.max_height;
 
   if (!task_stats.task_valid || maxheight <= 0
-      || !protected_task_manager
+      || !backend_components->protected_task_manager
       || !common_stats.TimeUnderStartMaxHeight.IsDefined()) {
     data.SetInvalid();
     return;
@@ -724,8 +727,8 @@ UpdateInfoBoxNextETAVMG(InfoBoxData &data) noexcept
   if (now_local.IsPlausible()) {
     const std::chrono::seconds dd{long(d/v)};
     const BrokenTime t = now_local + dd;
-    data.UnsafeFormatValue(_T("%02u:%02u"), t.hour, t.minute);
-    data.UnsafeFormatComment(_T("%02u"), t.second);
+    data.FmtValue(_T("{:02}:{:02}"), t.hour, t.minute);
+    data.FmtComment(_T("{:02}"), t.second);
   }
 
 }
@@ -758,7 +761,7 @@ void
 UpdateInfoBoxCruiseEfficiency(InfoBoxData &data) noexcept
 {
   const TaskStats &task_stats = CommonInterface::Calculated().task_stats;
-  if (!task_stats.task_valid || !task_stats.start.task_started) {
+  if (!task_stats.task_valid || !task_stats.start.HasStarted()) {
     data.SetInvalid();
     return;
   }
@@ -804,7 +807,7 @@ UpdateInfoBoxStartOpen(InfoBoxData &data) noexcept
   } else if (open.HasBegun(now)) {
     if (open.GetEnd().IsValid()) {
       unsigned seconds = SecondsUntil(now_s, open.GetEnd());
-      data.UnsafeFormatValue(_T("%02u:%02u"), seconds / 60, seconds % 60);
+      data.FmtValue(_T("{:02}:{:02}"), seconds / 60, seconds % 60);
       data.SetValueColor(3);
     } else
       data.SetValueInvalid();
@@ -812,7 +815,7 @@ UpdateInfoBoxStartOpen(InfoBoxData &data) noexcept
     data.SetComment(_("Open"));
   } else {
     unsigned seconds = SecondsUntil(now_s, open.GetStart());
-    data.UnsafeFormatValue(_T("%02u:%02u"), seconds / 60, seconds % 60);
+    data.FmtValue(_T("{:02}:{:02}"), seconds / 60, seconds % 60);
     data.SetValueColor(2);
     data.SetComment(_("Waiting"));
   }
@@ -849,7 +852,7 @@ UpdateInfoBoxStartOpenArrival(InfoBoxData &data) noexcept
   } else if (open.HasBegun(arrival)) {
     if (open.GetEnd().IsValid()) {
       unsigned seconds = SecondsUntil(arrival_s, open.GetEnd());
-      data.UnsafeFormatValue(_T("%02u:%02u"), seconds / 60, seconds % 60);
+      data.FmtValue(_T("{:02}:{:02}"), seconds / 60, seconds % 60);
       data.SetValueColor(3);
     } else
       data.SetValueInvalid();
@@ -857,7 +860,7 @@ UpdateInfoBoxStartOpenArrival(InfoBoxData &data) noexcept
     data.SetComment(_("Open"));
   } else {
     unsigned seconds = SecondsUntil(arrival_s, open.GetStart());
-    data.UnsafeFormatValue(_T("%02u:%02u"), seconds / 60, seconds % 60);
+    data.FmtValue(_T("{:02}:{:02}"), seconds / 60, seconds % 60);
     data.SetValueColor(2);
     data.SetComment(_("Waiting"));
   }
@@ -880,8 +883,8 @@ InfoBoxContentNextArrow::Update(InfoBoxData &data) noexcept
   bool angle_valid = distance_valid && basic.track_available;
 
   // Set title. Use waypoint name if available.
-  const auto way_point = protected_task_manager != nullptr
-    ? protected_task_manager->GetActiveWaypoint()
+  const auto way_point = backend_components->protected_task_manager
+    ? backend_components->protected_task_manager->GetActiveWaypoint()
     : nullptr;
   if (!way_point)
     data.SetTitle(_("Next arrow"));
@@ -927,4 +930,27 @@ InfoBoxContentNextArrow::OnCustomPaint(Canvas &canvas,
 
   NextArrowRenderer renderer(UIGlobals::GetLook().wind_arrow_info_box);
   renderer.DrawArrow(canvas, rc, bd);
+}
+
+/*
+ * This infobox shows either AAT dT + ETA, or only ETA depending on task type
+ */
+void
+UpdateInfoTaskETAorAATdT(InfoBoxData& data) noexcept
+{
+  const auto& calculated = CommonInterface::Calculated();
+  const TaskStats& task_stats = calculated.ordered_task_stats;
+
+  // Always call the ETA infobox function. If task is AAT, the value of
+  // ETA infobox will be used as the comment of AATdT infobox
+  UpdateInfoBoxFinalETA(data);
+  if (task_stats.has_targets) { // Is AAT
+    // save the HH:MM ETA to use it as a comment of AATdT infobox
+    auto eta_text = data.value;
+    UpdateInfoBoxTaskAATimeDelta(data);
+    data.SetComment(eta_text);
+
+    data.SetTitle(_T("AAT delta time"));
+  } else
+    data.SetTitle(_T("Task arrival time"));
 }

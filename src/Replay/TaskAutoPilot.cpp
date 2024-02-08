@@ -5,7 +5,8 @@
 #include "TaskAccessor.hpp"
 #include "Task/Stats/ElementStat.hpp"
 #include "GlideSolvers/GlidePolar.hpp"
-#include "util/Clamp.hpp"
+
+#include <algorithm> // for std::clamp()
 
 #include <stdlib.h>
 
@@ -91,12 +92,15 @@ TaskAutoPilot::HasTarget([[maybe_unused]] const TaskAccessor& task) const
 GeoPoint
 TaskAutoPilot::GetTarget(const TaskAccessor& task) const
 {
-  if (HasTarget(task))
+  if (HasTarget(task)) {
     // in this mode, we go directly to the target
-    return task.GetActiveTaskPointLocation();
-  else
-    // head towards the rough location
-    return w[0];
+    const auto p = task.GetActiveTaskPointLocation();
+    if (p.IsValid())
+      return p;
+  }
+
+  // head towards the rough location
+  return w[0];
 }
 
 
@@ -180,7 +184,7 @@ TaskAutoPilot::UpdateCruiseBearing(const TaskAccessor& task,
   auto diff = (bearing - heading).AsDelta();
   auto d = diff.Degrees();
   auto max_turn = parms.turn_speed * timestep.count();
-  heading += Angle::Degrees(Clamp(d, -max_turn, max_turn));
+  heading += Angle::Degrees(std::clamp(d, -max_turn, max_turn));
   if (parms.bearing_noise > 0)
     heading += GetHeadingDeviation() * timestep.count();
 

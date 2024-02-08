@@ -8,15 +8,13 @@
 #include "io/FileLineReader.hpp"
 #include "Blackboard/DeviceBlackboard.hpp"
 #include "Logger/Logger.hpp"
-#include "Components.hpp"
 #include "Interface.hpp"
 #include "CatmullRomInterpolator.hpp"
 #include "time/Cast.hxx"
-#include "util/Clamp.hpp"
 
-#include <stdexcept>
-
+#include <algorithm> // for std::clamp()
 #include <cassert>
+#include <stdexcept>
 
 void
 Replay::Stop()
@@ -32,7 +30,7 @@ Replay::Stop()
   delete cli;
   cli = nullptr;
 
-  device_blackboard->StopReplay();
+  device_blackboard.StopReplay();
 
   if (logger != nullptr)
     logger->ClearBuffer();
@@ -50,7 +48,7 @@ Replay::Start(Path _path)
   path = _path;
 
   if (path == nullptr || path.empty()) {
-    replay = new DemoReplayGlue(task_manager);
+    replay = new DemoReplayGlue(device_blackboard, task_manager);
   } else if (path.EndsWithIgnoreCase(_T(".igc"))) {
     replay = new IgcReplay(std::make_unique<FileLineReaderA>(path));
 
@@ -113,9 +111,9 @@ Replay::Update()
       return true;
 
     {
-      const std::lock_guard lock{device_blackboard->mutex};
-      device_blackboard->SetReplayState() = next_data;
-      device_blackboard->ScheduleMerge();
+      const std::lock_guard lock{device_blackboard.mutex};
+      device_blackboard.SetReplayState() = next_data;
+      device_blackboard.ScheduleMerge();
     }
 
     while (true) {
@@ -187,9 +185,9 @@ Replay::Update()
     data.ProvideBaroAltitudeTrue(r.baro_altitude);
 
     {
-      const std::lock_guard lock{device_blackboard->mutex};
-      device_blackboard->SetReplayState() = data;
-      device_blackboard->ScheduleMerge();
+      const std::lock_guard lock{device_blackboard.mutex};
+      device_blackboard.SetReplayState() = data;
+      device_blackboard.ScheduleMerge();
     }
   }
 
@@ -216,7 +214,7 @@ Replay::OnTimer()
     constexpr std::chrono::steady_clock::duration upper = std::chrono::seconds(3);
     const FloatDuration delta_s((next_data.time - virtual_time) / time_scale);
     const auto delta = std::chrono::duration_cast<std::chrono::steady_clock::duration>(delta_s);
-    schedule = Clamp(delta, lower, upper);
+    schedule = std::clamp(delta, lower, upper);
   }
 
   timer.Schedule(schedule);

@@ -5,10 +5,10 @@ package org.xcsoar;
 
 import android.util.Log;
 import ioio.lib.api.IOIO;
-import ioio.lib.api.IOIOFactory;
 import ioio.lib.api.exception.ConnectionLostException;
 import ioio.lib.api.exception.IncompatibilityException;
 import ioio.lib.spi.IOIOConnectionFactory;
+import ioio.lib.impl.IOIOImpl;
 
 /**
  * This class attempts to establish a connection to a IOIO through a
@@ -102,7 +102,7 @@ final class IOIOAgent extends Thread {
       if (shutdownFlag || interrupted())
         return null;
 
-      connecting = ioio = IOIOFactory.create(factory.createConnection());
+      connecting = ioio = new IOIOImpl(factory.createConnection());
     }
 
     try {
@@ -137,6 +137,28 @@ final class IOIOAgent extends Thread {
       return null;
     } catch (IncompatibilityException e) {
       Log.e(TAG, "IOIO connection " + getName() + " incompatible");
+      ioio.disconnect();
+      return null;
+    } catch (IllegalArgumentException e) {
+      /* called from AccessoryConnectionBootstrap.tryOpen(),
+         UsbManager.openAccessory() can throw
+         IllegalArgumentException("no accessory attached") which seems
+         like the wrong exception type, and this is a workaround for
+         this Android quirk */
+      Log.e(TAG, "IOIO connection " + getName() + " failed: " + e);
+      ioio.disconnect();
+      return null;
+    } catch (IllegalStateException e) {
+      /* thrown by
+         AccessoryConnectionBootstrap$Connection.waitForConnect() if
+         disconnect() was called from another thread before
+         waitForConnect() was entered */
+      return null;
+    } catch (SecurityException e) {
+      /* called from AccessoryConnectionBootstrap.tryOpen(),
+         UsbManager.openAccessory() can throw SecurityException if no
+         permission was given to open the device */
+      Log.e(TAG, "IOIO connection " + getName() + " failed: " + e);
       ioio.disconnect();
       return null;
     } catch (InterruptedException e) {

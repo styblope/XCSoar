@@ -5,18 +5,19 @@
 
 #include <cstdint>
 #include <cstddef>
+#include <span>
 
 namespace FLARM {
-  struct FrameHeader;
 
-  /**
-   * Calculates the CRC value of the FrameHeader and an optional payload
-   * @param header FrameHeader to calculate the CRC for
-   * @param data Optional pointer to the first byte of the payload
-   * @param length Optional length of the payload
-   * @return CRC value
-   */
-  [[gnu::pure]]
-  uint16_t CalculateCRC(const FrameHeader &header, const void *data = nullptr,
-                        size_t length = 0);
-};
+struct FrameHeader;
+
+/**
+ * Calculates the CRC value of the FrameHeader and an optional payload
+ * @param header FrameHeader to calculate the CRC for
+ * @return CRC value
+ */
+[[gnu::pure]]
+uint16_t
+CalculateCRC(const FrameHeader &header, std::span<const std::byte> payload) noexcept;
+
+} // namespace FLARM

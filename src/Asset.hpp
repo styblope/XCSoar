@@ -26,17 +26,6 @@ IsDebug() noexcept
 }
 
 /**
- * Is XCSoar running on ancient and slow hardware?  If yes, then some
- * expensive UI features are disabled.
- */
-constexpr
-static inline bool
-IsAncientHardware() noexcept
-{
-  return false;
-}
-
-/**
  * Returns whether the application is running on Android
  */
 constexpr
@@ -118,17 +107,6 @@ IsEmbedded() noexcept
 }
 
 /**
- * Does this device have little main memory?  On those, some expensive
- * features are disabled.
- */
-constexpr
-static inline bool
-HasLittleMemory() noexcept
-{
-  return IsAncientHardware();
-}
-
-/**
  * Returns whether the application is compiled with IOIOLib
  */
 constexpr
@@ -147,7 +125,7 @@ HasIOIOLib() noexcept
  * @return True if a touch screen or mouse is assumed for the hardware
  * that XCSoar is running on, False if the hardware has only buttons
  */
-#if defined(USE_CONSOLE) && !defined(KOBO)
+#if (defined(USE_CONSOLE) && !defined(KOBO)) || defined(USE_WAYLAND)
 [[gnu::pure]]
 bool
 HasPointer() noexcept;
@@ -165,7 +143,7 @@ HasPointer() noexcept
  * Does this device have a touch screen?  This is useful to know for
  * sizing controls, as a touch screen may require bigger areas.
  */
-#ifdef USE_LIBINPUT
+#if defined(USE_LIBINPUT) || defined(USE_WAYLAND)
 [[gnu::pure]]
 bool
 HasTouchScreen() noexcept;
@@ -183,7 +161,7 @@ HasTouchScreen() noexcept
  * @return True if a keyboard is assumed for the hardware
  * that XCSoar is running on, False if the hardware has no keyboard
  */
-#ifdef USE_LIBINPUT
+#if defined(USE_LIBINPUT) || defined(USE_WAYLAND)
 [[gnu::pure]]
 bool
 HasKeyboard() noexcept;
@@ -220,17 +198,10 @@ HasCursorKeys() noexcept
 /**
  * Does this device have a display with colors?
  */
-#ifdef ANDROID
-[[gnu::const]]
-#else
-constexpr
-#endif
-static inline bool
+static constexpr bool
 HasColors() noexcept
 {
-#ifdef ANDROID
-  return !IsNookSimpleTouch();
-#elif defined(GREYSCALE)
+#if defined(GREYSCALE)
   return false;
 #else
   return !IsKobo();
@@ -240,18 +211,11 @@ HasColors() noexcept
 /**
  * Is dithering black&white used on the display?
  */
-#if defined(ANDROID) && defined(__arm__)
-[[gnu::const]]
-#else
-constexpr
-#endif
-static inline bool
+static constexpr bool
 IsDithered() noexcept
 {
 #ifdef DITHER
   return true;
-#elif defined(ANDROID) && defined(__arm__)
-  return is_dithered;
 #else
   return false;
 #endif
@@ -263,17 +227,8 @@ IsDithered() noexcept
  * and show ghosting.  Animations shall be disabled when this function
  * returns true.
  */
-#if defined(ANDROID) && defined(__arm__)
-[[gnu::const]]
-#else
-constexpr
-#endif
-static inline bool
+static constexpr bool
 HasEPaper() noexcept
 {
-#if defined(ANDROID) && defined(__arm__)
-  return IsNookSimpleTouch();
-#else
   return IsKobo();
-#endif
 }

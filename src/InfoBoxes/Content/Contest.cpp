@@ -10,6 +10,8 @@
 #include "Dialogs/dlgAnalysis.hpp"
 #include "Language/Language.hpp"
 #include "Widget/CallbackWidget.hpp"
+#include "BackendComponents.hpp"
+#include "DataComponents.hpp"
 
 #include <tchar.h>
 
@@ -18,9 +20,11 @@ ShowAnalysis8() noexcept
 {
   dlgAnalysisShowModal(UIGlobals::GetMainWindow(),
                        UIGlobals::GetLook(),
-                       CommonInterface::Full(), *glide_computer,
-                       &airspace_database,
-                       terrain, AnalysisPage::CONTEST);
+                       CommonInterface::Full(),
+                       *backend_components->glide_computer,
+                       data_components->airspaces.get(),
+                       data_components->terrain.get(),
+                       AnalysisPage::CONTEST);
 }
 
 static std::unique_ptr<Widget>
@@ -47,7 +51,8 @@ InfoBoxContentContest::Update(InfoBoxData &data) noexcept
   const ComputerSettings &settings_computer =
     CommonInterface::GetComputerSettings();
 
-   if (!settings_computer.contest.enable || !protected_task_manager) {
+   if (!settings_computer.contest.enable ||
+       !backend_components->protected_task_manager) {
     data.SetInvalid();
     return;
   }
@@ -66,7 +71,7 @@ InfoBoxContentContest::Update(InfoBoxData &data) noexcept
   // Set Value
   data.SetValueFromDistance(result_contest.distance);
 
-  data.UnsafeFormatComment(_T("%.1f pts"), (double)result_contest.score);
+  data.FmtComment(_T("{:.1f} pts"), result_contest.score);
 }
 
 const InfoBoxPanel *
@@ -81,7 +86,8 @@ InfoBoxContentContestSpeed::Update(InfoBoxData &data) noexcept
   const ComputerSettings &settings_computer =
     CommonInterface::GetComputerSettings();
 
-  if (!settings_computer.contest.enable || !protected_task_manager) {
+  if (!settings_computer.contest.enable ||
+      !backend_components->protected_task_manager) {
     data.SetInvalid();
     return;
   }
@@ -100,5 +106,5 @@ InfoBoxContentContestSpeed::Update(InfoBoxData &data) noexcept
   // Set Value
   data.SetValueFromTaskSpeed(result_contest.GetSpeed());
 
-  data.UnsafeFormatComment(_T("%.1f pts"), (double)result_contest.score);
+  data.FmtComment(_T("{:.1f} pts"), result_contest.score);
 }

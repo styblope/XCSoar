@@ -5,7 +5,6 @@
 #include "util/Macros.hpp"
 #include "Language/Language.hpp"
 #include "Message.hpp"
-#include "Components.hpp"
 #include "Interface.hpp"
 #include "ActionInterface.hpp"
 #include "Protection.hpp"
@@ -13,7 +12,7 @@
 #include "Formatter/LocalTimeFormatter.hpp"
 #include "Units/Units.hpp"
 #include "Profile/Profile.hpp"
-#include "Profile/ProfileKeys.hpp"
+#include "Profile/Keys.hpp"
 #include "LocalPath.hpp"
 #include "Dialogs/Task/TaskDialogs.hpp"
 #include "Dialogs/Waypoint/WaypointDialogs.hpp"
@@ -24,6 +23,9 @@
 #include "Engine/Waypoint/Waypoints.hpp"
 #include "Engine/Navigation/Aircraft.hpp"
 #include "system/Path.hpp"
+#include "Components.hpp"
+#include "BackendComponents.hpp"
+#include "DataComponents.hpp"
 
 static void
 trigger_redraw()
@@ -42,10 +44,10 @@ trigger_redraw()
 void
 InputEvents::eventArmAdvance(const TCHAR *misc)
 {
-  if (protected_task_manager == NULL)
+  if (!backend_components->protected_task_manager)
     return;
 
-  ProtectedTaskManager::ExclusiveLease task_manager(*protected_task_manager);
+  ProtectedTaskManager::ExclusiveLease task_manager{*backend_components->protected_task_manager};
   TaskAdvance &advance = task_manager->SetTaskAdvance();
 
   if (StringIsEqual(misc, _T("on"))) {
@@ -96,12 +98,12 @@ InputEvents::eventGotoLookup([[maybe_unused]] const TCHAR *misc)
 {
   const NMEAInfo &basic = CommonInterface::Basic();
 
-  if (protected_task_manager == NULL)
+  if (!backend_components->protected_task_manager)
     return;
 
-  auto wp = ShowWaypointListDialog(basic.location);
+  auto wp = ShowWaypointListDialog(*data_components->waypoints, basic.location);
   if (wp != NULL) {
-    protected_task_manager->DoGoto(std::move(wp));
+    backend_components->protected_task_manager->DoGoto(std::move(wp));
     trigger_redraw();
   }
 }
@@ -112,7 +114,7 @@ InputEvents::eventGotoLookup([[maybe_unused]] const TCHAR *misc)
 void
 InputEvents::eventMacCready(const TCHAR *misc)
 {
-  if (protected_task_manager == NULL)
+  if (!backend_components->protected_task_manager)
     return;
 
   const GlidePolar &polar =
@@ -143,9 +145,7 @@ InputEvents::eventMacCready(const TCHAR *misc)
       Message::AddMessage(_("Auto. MacCready off"));
     }
   } else if (StringIsEqual(misc, _T("show"))) {
-    TCHAR Temp[100];
-    FormatUserVerticalSpeed(mc, Temp, false);
-    Message::AddMessage(_("MacCready "), Temp);
+    Message::AddMessage(_("MacCready "), FormatUserVerticalSpeed(mc, false));
   }
 }
 
@@ -158,6 +158,7 @@ InputEvents::eventMacCready(const TCHAR *misc)
 void
 InputEvents::eventAdjustWaypoint(const TCHAR *misc)
 {
+  auto *protected_task_manager = backend_components->protected_task_manager.get();
   if (protected_task_manager == NULL)
     return;
 
@@ -194,10 +195,10 @@ InputEvents::eventAdjustWaypoint(const TCHAR *misc)
 void
 InputEvents::eventAbortTask(const TCHAR *misc)
 {
-  if (protected_task_manager == NULL)
+  if (!backend_components->protected_task_manager)
     return;
 
-  ProtectedTaskManager::ExclusiveLease task_manager(*protected_task_manager);
+  ProtectedTaskManager::ExclusiveLease task_manager{*backend_components->protected_task_manager};
 
   if (StringIsEqual(misc, _T("abort")))
     task_manager->Abort();
@@ -250,10 +251,12 @@ InputEvents::eventAbortTask(const TCHAR *misc)
 void
 InputEvents::eventTaskLoad(const TCHAR *misc)
 {
-  if (protected_task_manager == NULL)
+  if (!backend_components->protected_task_manager)
     return;
 
   if (!StringIsEmpty(misc)) {
+    auto &way_points = *data_components->waypoints;
+
     const auto task = TaskFile::GetTask(LocalPath(misc),
                                         CommonInterface::GetComputerSettings().task,
                                         &way_points, 0);
@@ -264,7 +267,7 @@ InputEvents::eventTaskLoad(const TCHAR *misc)
         way_points.Optimise();
       }
 
-      protected_task_manager->TaskCommit(*task);
+      backend_components->protected_task_manager->TaskCommit(*task);
     }
   }
 
@@ -276,24 +279,24 @@ InputEvents::eventTaskLoad(const TCHAR *misc)
 void
 InputEvents::eventTaskSave(const TCHAR *misc)
 {
-  if (protected_task_manager == NULL)
+  if (!backend_components->protected_task_manager)
     return;
 
   if (!StringIsEmpty(misc)) {
-    protected_task_manager->TaskSave(LocalPath(misc));
+    backend_components->protected_task_manager->TaskSave(LocalPath(misc));
   }
 }
 
 void
 InputEvents::eventTaskTransition(const TCHAR *misc)
 {
-  if (protected_task_manager == NULL)
+  if (!backend_components->protected_task_manager)
     return;
 
   if (StringIsEqual(misc, _T("start"))) {
     const StartStats &start_stats =
       CommonInterface::Calculated().ordered_task_stats.start;
-    if (!start_stats.task_started)
+    if (!start_stats.HasStarted())
       return;
 
     TCHAR TempAll[120];
@@ -316,8 +319,6 @@ InputEvents::eventTaskTransition(const TCHAR *misc)
 void
 InputEvents::eventResetTask([[maybe_unused]] const TCHAR *misc)
 {
-  if (protected_task_manager == nullptr)
-    return;
-
-  protected_task_manager->ResetTask();
+  if (backend_components->protected_task_manager)
+    backend_components->protected_task_manager->ResetTask();
 }

@@ -20,6 +20,8 @@ ExternalSettings::Clear()
   standby_frequency.Clear();
   standby_freq_name.clear();
   swap_frequencies.Clear();
+  has_transponder_code.Clear();
+  transponder_code.Clear();
   ballast_litres_available.Clear();
 }
 
@@ -90,6 +92,13 @@ ExternalSettings::Complement(const ExternalSettings &add)
   if (add.swap_frequencies.Modified(swap_frequencies)) {
     swap_frequencies = add.swap_frequencies;
   }
+
+  if (add.has_transponder_code.Modified(has_transponder_code) &&
+      add.transponder_code.IsDefined()) {
+    has_transponder_code = add.has_transponder_code;
+    transponder_code = add.transponder_code;
+  }
+
 }
 
 void
@@ -111,8 +120,8 @@ ExternalSettings::EliminateRedundant(const ExternalSettings &other,
     ballast_overload_available.Clear();
 
   if (ballast_litres_available &&
-      other.CompareBallastOverload(ballast_litres) &&
-      !last.CompareBallastOverload(ballast_litres))
+      other.CompareBallastLitres(ballast_litres) &&
+      !last.CompareBallastLitres(ballast_litres))
     ballast_litres_available.Clear();
 
   if (wing_loading_available && other.CompareWingLoading(wing_loading) &&

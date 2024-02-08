@@ -3,7 +3,6 @@
 
 #pragma once
 
-#include <algorithm>
 #include <cassert>
 
 /**
@@ -37,9 +36,26 @@ public:
 			return buffer.data[i];
 		}
 
-		typename TrivialOverwritingRingBuffer::const_iterator &operator++() noexcept {
+		auto &operator++() noexcept {
 			i = buffer.next(i);
 			return *this;
+		}
+
+		auto &operator--() noexcept {
+			i = buffer.previous(i);
+			return *this;
+		}
+
+		auto operator++(int) noexcept {
+			auto result = *this;
+			i = buffer.next(i);
+			return result;
+		}
+
+		auto operator--(int) noexcept {
+			auto result = *this;
+			i = buffer.previous(i);
+			return result;
 		}
 
 		bool operator==(const const_iterator &other) const noexcept {

@@ -181,6 +181,30 @@ Java_org_xcsoar_NativeSensorListener_onI2CbaroSensor(JNIEnv *env, jobject obj,
 
 gcc_visibility_default
 JNIEXPORT void JNICALL
+Java_org_xcsoar_NativeSensorListener_onEngineSensors(JNIEnv *env,
+                                                     jobject obj,
+                                                     jboolean has_cht_temp,
+                                                     jint cht_temp,
+                                                     jboolean has_egt_temp,
+                                                     jint egt_temp,
+                                                     jboolean has_ignitions_per_second,
+                                                     jfloat ignitions_per_second)
+{
+  jlong ptr = env->GetLongField(obj, NativeSensorListener::ptr_field);
+  if (ptr == 0)
+    return;
+
+  auto &listener = *(SensorListener *)ptr;
+  listener.OnEngineSensors(has_cht_temp,
+                           Temperature::FromKelvin(cht_temp),
+                           has_egt_temp,
+                           Temperature::FromKelvin(egt_temp),
+                           has_ignitions_per_second,
+                           ignitions_per_second);
+}
+
+gcc_visibility_default
+JNIEXPORT void JNICALL
 Java_org_xcsoar_NativeSensorListener_onVarioSensor(JNIEnv *env,
                                                    jobject obj,
                                                    jfloat vario)
@@ -223,11 +247,11 @@ Java_org_xcsoar_NativeSensorListener_onVoltageValues(JNIEnv *env, jobject obj,
 
 gcc_visibility_default
 JNIEXPORT void JNICALL
-Java_org_xcsoar_NativeSensorListener_onNunchuckValues(JNIEnv *env, jobject obj,
-                                                      jint joy_x, jint joy_y,
-                                                      jint acc_x, jint acc_y,
-                                                      jint acc_z,
-                                                      jint switches)
+Java_org_xcsoar_NativeSensorListener_onNunchukValues(JNIEnv *env, jobject obj,
+                                                     jint joy_x, jint joy_y,
+                                                     jint acc_x, jint acc_y,
+                                                     jint acc_z,
+                                                     jint switches)
  {
   jlong ptr = env->GetLongField(obj, NativeSensorListener::ptr_field);
   if (ptr == 0)
@@ -239,16 +263,16 @@ Java_org_xcsoar_NativeSensorListener_onNunchuckValues(JNIEnv *env, jobject obj,
 
 gcc_visibility_default
 JNIEXPORT void JNICALL
-Java_org_xcsoar_NativeSensorListener_setGliderLinkInfo(JNIEnv *env,
-                                                       jobject obj,
-                                                       jlong gid,
-                                                       jstring callsign,
-                                                       jdouble latitude,
-                                                       jdouble longitude,
-                                                       jdouble altitude,
-                                                       jdouble gspeed,
-                                                       jdouble vspeed,
-                                                       jint bearing)
+Java_org_xcsoar_NativeSensorListener_onGliderLinkTraffic(JNIEnv *env,
+                                                         jobject obj,
+                                                         jlong gid,
+                                                         jstring callsign,
+                                                         jdouble latitude,
+                                                         jdouble longitude,
+                                                         jdouble altitude,
+                                                         jdouble gspeed,
+                                                         jdouble vspeed,
+                                                         jint bearing)
 {
   jlong ptr = env->GetLongField(obj, NativeSensorListener::ptr_field);
   if (ptr == 0)

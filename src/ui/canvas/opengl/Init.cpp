@@ -5,7 +5,6 @@
 #include "Debug.hpp"
 #include "Extension.hpp"
 #include "Globals.hpp"
-#include "Shapes.hpp"
 #include "Function.hpp"
 #include "Dynamic.hpp"
 #include "FBO.hpp"
@@ -144,6 +143,15 @@ OpenGL::SetupContext()
   }
 #endif
 
+#ifdef GL_EXT_discard_framebuffer
+  if (IsExtensionSupported("GL_EXT_discard_framebuffer")) {
+    GLExt::discard_framebuffer = (PFNGLDISCARDFRAMEBUFFEREXTPROC)
+      GetProcAddress("glDiscardFramebufferEXT");
+  } else {
+    GLExt::discard_framebuffer = nullptr;
+  }
+#endif
+
   render_buffer_depth_stencil = CheckDepthStencil();
 
   render_buffer_stencil = CheckStencil();
@@ -153,8 +161,6 @@ OpenGL::SetupContext()
 
   glDisable(GL_DEPTH_TEST);
   glDisable(GL_DITHER);
-
-  InitShapes();
 
   InitShaders();
 }
@@ -232,8 +238,6 @@ void
 OpenGL::Deinitialise() noexcept
 {
   DeinitShaders();
-
-  DeinitShapes();
 
   TextCache::Flush();
 }

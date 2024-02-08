@@ -2,7 +2,7 @@
 // Copyright The XCSoar Project
 
 #include "UIProfile.hpp"
-#include "ProfileKeys.hpp"
+#include "Keys.hpp"
 #include "Map.hpp"
 #include "MapProfile.hpp"
 #include "InfoBoxConfig.hpp"
@@ -130,6 +130,15 @@ Profile::Load(const ProfileMap &map, UISettings &settings)
   map.GetEnum(ProfileKeys::HapticFeedback, settings.haptic_feedback);
 
   map.Get(ProfileKeys::ShowMenuButton, settings.show_menu_button);
+
+  if (!map.GetEnum(ProfileKeys::DarkMode, settings.dark_mode)) {
+    /* migrate the old AppInverseInfoBox setting */
+    bool inverse;
+    if (map.Get(ProfileKeys::AppInverseInfoBox, inverse))
+      settings.dark_mode = inverse
+        ? UISettings::DarkMode::ON
+        : UISettings::DarkMode::OFF;
+  }
 
   Load(map, settings.format);
   Load(map, settings.map);

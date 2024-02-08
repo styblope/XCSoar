@@ -8,10 +8,11 @@
 #include "Util.hxx"
 #include "util/StringAPI.hxx"
 #include "Interface.hpp"
-#include "Components.hpp"
 #include "Task/ProtectedTaskManager.hpp"
 #include "Engine/Waypoint/Waypoint.hpp"
 #include "Engine/Util/Gradient.hpp"
+#include "Components.hpp"
+#include "BackendComponents.hpp"
 
 using namespace std::chrono;
 
@@ -54,8 +55,9 @@ l_task_index(lua_State *L)
      
       Lua::Push(L, vector_remaining.distance);
   } else if (StringIsEqual(name, "next_distance_nominal")) {
-      const auto way_point = protected_task_manager != nullptr
-          ? protected_task_manager->GetActiveWaypoint() : NULL;
+      const auto way_point = backend_components->protected_task_manager
+        ? backend_components->protected_task_manager->GetActiveWaypoint()
+        : nullptr;
 
       if (!way_point) return 0;
       const NMEAInfo &basic = CommonInterface::Basic();
@@ -212,7 +214,7 @@ l_task_index(lua_State *L)
       Lua::Push(L, task_stats.inst_speed_fast);
   } else if (StringIsEqual(name, "task_speed_hour")) {
       const WindowStats &window = CommonInterface::Calculated().task_stats.last_hour;
-      if (window.duration < 0)
+      if (!window.IsDefined())
         return 0;
 
       Lua::Push(L, window.speed);
@@ -307,10 +309,10 @@ l_task_index(lua_State *L)
       const auto &calculated = CommonInterface::Calculated();
       const auto &task_stats = calculated.ordered_task_stats;
       const auto &common_stats = calculated.common_stats;
-      const double maxheight = protected_task_manager->GetOrderedTaskSettings().start_constraints.max_height;
+      const double maxheight = backend_components->protected_task_manager->GetOrderedTaskSettings().start_constraints.max_height;
 
       if (!task_stats.task_valid || maxheight <= 0
-          || !protected_task_manager
+          || !backend_components->protected_task_manager
           || !common_stats.TimeUnderStartMaxHeight.IsDefined()) {
         return 0;
       }
@@ -354,7 +356,7 @@ l_task_index(lua_State *L)
       Lua::Push(L, d/v);
   } else if (StringIsEqual(name, "cruise_efficiency")) {
       const TaskStats &task_stats = CommonInterface::Calculated().task_stats;
-      if (!task_stats.task_valid || !task_stats.start.task_started) 
+      if (!task_stats.task_valid || !task_stats.start.HasStarted())
         return 0;
 
       Lua::Push(L, task_stats.cruise_efficiency);

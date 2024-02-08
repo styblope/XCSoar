@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <compare>
 #include <cstddef>
+#include <string_view>
 
 #include <tchar.h>
 
@@ -21,7 +22,7 @@ class RadioFrequency {
   /**
    * The radio frequency in kilohertz minus 100 MHz.
    */
-  uint16_t value;
+  uint_least16_t value;
 
   constexpr RadioFrequency(unsigned _value) noexcept:value(_value) {}
 
@@ -63,7 +64,7 @@ public:
    * Set this object to "undefined".
    */
   constexpr void Clear() noexcept {
-    value = 0;
+    *this = Null();
   }
 
   constexpr unsigned GetKiloHertz() const noexcept {
@@ -98,4 +99,7 @@ public:
 
   [[gnu::pure]]
   static RadioFrequency Parse(const TCHAR *p) noexcept;
+
+  [[gnu::pure]]
+  static RadioFrequency Parse(std::string_view src) noexcept;
 };

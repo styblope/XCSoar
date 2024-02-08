@@ -2,6 +2,7 @@
 // Copyright The XCSoar Project
 
 #include "UploadFlight.hpp"
+#include "Error.hpp"
 #include "Settings.hpp"
 #include "net/http/Progress.hpp"
 #include "lib/curl/CoStreamRequest.hxx"
@@ -14,7 +15,7 @@
 #include "system/Path.hpp"
 #include "util/StaticString.hxx"
 
-#include <cinttypes>
+#include <fmt/format.h>
 
 namespace WeGlide {
 
@@ -27,12 +28,10 @@ MakeUploadFlightMime(CURL *easy, const WeGlideSettings &settings,
   mime.Add("file").Filename("igc_file").FileData(NarrowPathName{igc_path});
 
   char buffer[32];
-  sprintf(buffer, "%u", settings.pilot_id);
-  mime.Add("user_id").Data(buffer);
+  mime.Add("user_id").Data(fmt::format_int{settings.pilot_id}.c_str());
   FormatISO8601(buffer, settings.pilot_birthdate);
   mime.Add("date_of_birth").Data(buffer);
-  sprintf(buffer, "%" PRIuLEAST32, glider_type);
-  mime.Add("aircraft_id").Data(buffer);
+  mime.Add("aircraft_id").Data(fmt::format_int{glider_type}.c_str());
 
   return mime;
 }
@@ -49,7 +48,6 @@ UploadFlight(CurlGlobal &curl, const WeGlideSettings &settings,
   CurlEasy easy{url};
   Curl::Setup(easy);
   const Net::ProgressAdapter progress_adapter{easy, progress};
-  easy.SetFailOnError();
 
   const auto mime = MakeUploadFlightMime(easy.Get(), settings,
                                          glider_type, igc_path);
@@ -58,7 +56,12 @@ UploadFlight(CurlGlobal &curl, const WeGlideSettings &settings,
   Json::ParserOutputStream parser;
   const auto response =
     co_await Curl::CoStreamRequest(curl, std::move(easy), parser);
-  co_return parser.Finish();
+  auto body = parser.Finish();
+
+  if (response.status != 201)
+    throw ResponseToException(response.status, body);
+
+  co_return body;
 }
 
 } // namespace WeGlide

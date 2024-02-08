@@ -62,7 +62,7 @@ AppendIGCString(MD5 &md5, std::string_view s, bool ignore_comma) noexcept
       continue;
 
     if (IsValidIGCChar(ch))
-      md5.Append(ch);
+      md5.Append(static_cast<std::byte>(ch));
   }
 }
 
@@ -131,7 +131,7 @@ GRecord::WriteTo(BufferedOutputStream &writer) const
   for (const char *i = digest, *end = digest + DIGEST_LENGTH;
        i != end; i += chars_per_line) {
     writer.Write('G');
-    writer.Write(i, chars_per_line);
+    writer.Write(std::string_view{i, chars_per_line});
     writer.Write('\n');
   }
 }

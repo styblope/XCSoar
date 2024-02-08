@@ -8,23 +8,24 @@
 #include "Interface.hpp"
 #include "Profile/Profile.hpp"
 #include "Screen/Layout.hpp"
-#include "util/Clamp.hpp"
+
+#include <algorithm> // for std::clamp()
 
 void
-OffsetHistory::Reset()
+OffsetHistory::Reset() noexcept
 {
   offsets.fill(PixelPoint{0, 0});
 }
 
 inline void
-OffsetHistory::Add(PixelPoint p)
+OffsetHistory::Add(PixelPoint p) noexcept
 {
   offsets[pos] = p;
   pos = (pos + 1) % offsets.size();
 }
 
 inline PixelPoint
-OffsetHistory::GetAverage() const
+OffsetHistory::GetAverage() const noexcept
 {
   int x = 0;
   int y = 0;
@@ -42,7 +43,7 @@ OffsetHistory::GetAverage() const
 }
 
 void
-GlueMapWindow::SetPan(bool enable)
+GlueMapWindow::SetPan(bool enable) noexcept
 {
   switch (follow_mode) {
   case FOLLOW_SELF:
@@ -64,7 +65,7 @@ GlueMapWindow::SetPan(bool enable)
 }
 
 void
-GlueMapWindow::TogglePan()
+GlueMapWindow::TogglePan() noexcept
 {
   switch (follow_mode) {
   case FOLLOW_SELF:
@@ -80,7 +81,7 @@ GlueMapWindow::TogglePan()
 }
 
 void
-GlueMapWindow::PanTo(const GeoPoint &location)
+GlueMapWindow::PanTo(const GeoPoint &location) noexcept
 {
   follow_mode = FOLLOW_PAN;
   SetLocation(location);
@@ -89,7 +90,7 @@ GlueMapWindow::PanTo(const GeoPoint &location)
 }
 
 void
-GlueMapWindow::UpdateScreenBounds()
+GlueMapWindow::UpdateScreenBounds() noexcept
 {
   visible_projection.UpdateScreenBounds();
 
@@ -107,7 +108,7 @@ GlueMapWindow::UpdateScreenBounds()
 }
 
 void
-GlueMapWindow::SetMapScale(double scale)
+GlueMapWindow::SetMapScale(double scale) noexcept
 {
   MapWindow::SetMapScale(scale);
   OnProjectionModified();
@@ -126,7 +127,7 @@ GlueMapWindow::SetMapScale(double scale)
 }
 
 void
-GlueMapWindow::RestoreMapScale()
+GlueMapWindow::RestoreMapScale() noexcept
 {
   const MapSettings &settings = CommonInterface::GetMapSettings();
   const bool circling =
@@ -139,7 +140,7 @@ GlueMapWindow::RestoreMapScale()
 }
 
 inline void
-GlueMapWindow::SaveDisplayModeScales()
+GlueMapWindow::SaveDisplayModeScales() noexcept
 {
   const MapSettings &settings = CommonInterface::GetMapSettings();
 
@@ -148,7 +149,7 @@ GlueMapWindow::SaveDisplayModeScales()
 }
 
 inline void
-GlueMapWindow::SwitchZoomClimb()
+GlueMapWindow::SwitchZoomClimb() noexcept
 {
   const MapSettings &settings = CommonInterface::GetMapSettings();
 
@@ -157,7 +158,7 @@ GlueMapWindow::SwitchZoomClimb()
 }
 
 void
-GlueMapWindow::UpdateDisplayMode()
+GlueMapWindow::UpdateDisplayMode() noexcept
 {
   /* not using MapWindowBlackboard here because these methods are
      called by the main thread */
@@ -176,7 +177,7 @@ GlueMapWindow::UpdateDisplayMode()
 }
 
 void
-GlueMapWindow::UpdateScreenAngle()
+GlueMapWindow::UpdateScreenAngle() noexcept
 {
   /* not using MapWindowBlackboard here because these methods are
      called by the main thread */
@@ -214,7 +215,7 @@ GlueMapWindow::UpdateScreenAngle()
 }
 
 void
-GlueMapWindow::UpdateMapScale()
+GlueMapWindow::UpdateMapScale() noexcept
 {
   /* not using MapWindowBlackboard here because these methods are
      called by the main thread */
@@ -245,8 +246,8 @@ GlueMapWindow::UpdateMapScale()
     distance /= auto_zoom_factor / 100.;
 
     // Clip map auto zoom range to reasonable values
-    distance = Clamp(distance, 525.,
-                     settings.max_auto_zoom_distance / 10.);
+    distance = std::clamp(distance, 525.,
+                          settings.max_auto_zoom_distance / 10.);
 
     visible_projection.SetFreeMapScale(distance);
     settings.cruise_scale = visible_projection.GetScale();
@@ -256,14 +257,14 @@ GlueMapWindow::UpdateMapScale()
 }
 
 void
-GlueMapWindow::SetLocation(const GeoPoint location)
+GlueMapWindow::SetLocation(const GeoPoint location) noexcept
 {
   MapWindow::SetLocation(location);
   OnProjectionModified();
 }
 
 void
-GlueMapWindow::SetLocationLazy(const GeoPoint location)
+GlueMapWindow::SetLocationLazy(const GeoPoint location) noexcept
 {
   if (!visible_projection.IsValid()) {
     SetLocation(location);
@@ -279,7 +280,7 @@ GlueMapWindow::SetLocationLazy(const GeoPoint location)
 }
 
 void
-GlueMapWindow::UpdateProjection()
+GlueMapWindow::UpdateProjection() noexcept
 {
   const PixelRect rc = GetClientRect();
 
@@ -294,7 +295,7 @@ GlueMapWindow::UpdateProjection()
   const auto center = rc.GetCenter();
 
   if (circling || !IsNearSelf())
-    visible_projection.SetScreenOrigin(center.x, center.y);
+    visible_projection.SetScreenOrigin(center);
   else if (settings_map.cruise_orientation == MapOrientation::NORTH_UP ||
            settings_map.cruise_orientation == MapOrientation::WIND_UP) {
     PixelPoint offset{0, 0};
@@ -328,7 +329,7 @@ GlueMapWindow::UpdateProjection()
       offset_history.Add(offset);
       offset = offset_history.GetAverage();
     }
-    visible_projection.SetScreenOrigin(center.x + offset.x, center.y + offset.y);
+    visible_projection.SetScreenOrigin(center + offset);
   } else
     visible_projection.SetScreenOrigin(center.x,
         ((rc.top - rc.bottom) * settings_map.glider_screen_position / 100) + rc.bottom);

@@ -2,7 +2,6 @@
 // Copyright The XCSoar Project
 
 #include "Process.hpp"
-#include "util/Compiler.h"
 
 #ifdef HAVE_POSIX
 
@@ -13,7 +12,7 @@
 #include <signal.h>
 
 static bool
-UnblockAllSignals()
+UnblockAllSignals() noexcept
 {
   sigset_t ss;
   sigemptyset(&ss);
@@ -21,7 +20,7 @@ UnblockAllSignals()
 }
 
 static pid_t
-ForkExec(const char *const*argv)
+ForkExec(const char *const*argv) noexcept
 {
   const pid_t pid = fork();
   if (pid == 0) {
@@ -35,7 +34,7 @@ ForkExec(const char *const*argv)
 }
 
 static bool
-Wait(pid_t pid)
+Wait(pid_t pid) noexcept
 {
   assert(pid > 0);
 
@@ -51,11 +50,11 @@ Wait(pid_t pid)
 }
 
 bool
-Start(const char *const*argv)
+Start(const char *const*argv) noexcept
 {
   /* double fork to detach from this process */
   const pid_t pid = fork();
-  if (gcc_unlikely(pid < 0))
+  if (pid < 0) [[unlikely]]
     return false;
 
   if (pid == 0)
@@ -65,7 +64,7 @@ Start(const char *const*argv)
 }
 
 bool
-Run(const char *const*argv)
+Run(const char *const*argv) noexcept
 {
   const pid_t pid = ForkExec(argv);
   return pid > 0 && Wait(pid);

@@ -25,7 +25,6 @@
 #include "ui/event/Notify.hpp"
 #include "Blackboard/DeviceBlackboard.hpp"
 #include "Blackboard/BlackboardListener.hpp"
-#include "Components.hpp"
 #include "Look/DialogLook.hpp"
 #include "Widget/ListWidget.hpp"
 #include "ui/canvas/Canvas.hpp"
@@ -51,6 +50,9 @@ using namespace UI;
 class DeviceListWidget final
   : public ListWidget,
     NullBlackboardListener, PortListener {
+  DeviceBlackboard &device_blackboard;
+  MultipleDevices *const devices;
+
   const DialogLook &look;
 
   unsigned font_height;
@@ -61,19 +63,26 @@ class DeviceListWidget final
     bool alive:1, location:1, gps:1, baro:1, pitot:1, airspeed:1, vario:1, traffic:1;
     bool temperature:1;
     bool humidity:1;
-    bool radio:1;
+    bool radio:1, transponder:1;
+    bool engine:1;
     bool debug:1;
+
+#ifdef ANDROID
+    bool bluetooth_disabled:1;
+#else
+    static constexpr bool bluetooth_disabled = false;
+#endif
 
     int8_t battery_percent;
 
-    void Set(const DeviceConfig &config, const DeviceDescriptor &device,
+    void Set(const DeviceConfig &config, const DeviceDescriptor *device,
              const NMEAInfo &basic) {
       /* if a DeviceDescriptor is "unconfigured" but its DeviceConfig
          contains a valid configuration, then it got disabled by
          DeviceConfigOverlaps(), i.e. it's duplicate */
-      duplicate = !config.IsDisabled() && !device.IsConfigured();
+      duplicate = !config.IsDisabled() && (device != nullptr && !device->IsConfigured());
 
-      switch (device.GetState()) {
+      switch (device != nullptr ? device->GetState() : PortState::LIMBO) {
       case PortState::READY:
         open = true;
         error = false;
@@ -102,9 +111,18 @@ class DeviceListWidget final
       traffic = basic.flarm.IsDetected();
       temperature = basic.temperature_available;
       humidity = basic.humidity_available;
-      debug = device.IsDumpEnabled();
+      debug = device != nullptr && device->IsDumpEnabled();
       radio = basic.settings.has_active_frequency || 
         basic.settings.has_standby_frequency;
+      transponder = basic.settings.has_transponder_code;
+      engine = basic.engine.IsAnyDefined();
+
+#ifdef ANDROID
+      bluetooth_disabled = config.IsAndroidBluetooth() &&
+        bluetooth_helper != nullptr &&
+        !bluetooth_helper->IsEnabled(Java::GetEnv());
+#endif
+
       battery_percent = basic.battery_level_available
         ? (int)basic.battery_level
         : -1;
@@ -123,7 +141,7 @@ class DeviceListWidget final
       i = 0;
     }
 
-    void Set(const DeviceConfig &config, const DeviceDescriptor &device,
+    void Set(const DeviceConfig &config, const DeviceDescriptor *device,
              const NMEAInfo &basic) {
       i = 0;
       flags.Set(config, device, basic);
@@ -163,8 +181,12 @@ class DeviceListWidget final
   }};
 
 public:
-  DeviceListWidget(const DialogLook &_look)
-    :look(_look) {}
+  DeviceListWidget(DeviceBlackboard &_device_blackboard,
+                   MultipleDevices *_devices,
+                   const DialogLook &_look) noexcept
+    :device_blackboard(_device_blackboard),
+     devices(_devices),
+     look(_look) {}
 
   void CreateButtons(WidgetDialog &dialog);
 
@@ -188,7 +210,8 @@ public:
   void Show(const PixelRect &rc) noexcept override {
     ListWidget::Show(rc);
 
-    devices->AddPortListener(*this);
+    if (devices != nullptr)
+      devices->AddPortListener(*this);
     CommonInterface::GetLiveBlackboard().AddListener(*this);
 
     RefreshList();
@@ -199,7 +222,9 @@ public:
     ListWidget::Hide();
 
     CommonInterface::GetLiveBlackboard().RemoveListener(*this);
-    devices->RemovePortListener(*this);
+
+    if (devices != nullptr)
+      devices->RemovePortListener(*this);
   }
 
   /* virtual methods from class List::Handler */
@@ -242,17 +267,20 @@ DeviceListWidget::RefreshList()
 
     Item n;
     n.Set(CommonInterface::GetSystemSettings().devices[i],
-          (*devices)[i], device_blackboard->RealState(i));
+          devices != nullptr ? &(*devices)[i] : nullptr,
+          device_blackboard.RealState(i));
 
     if (n != item) {
       item = n;
       modified = true;
     }
 
-    auto error_message = (*devices)[i].GetErrorMessage();
-    if (error_message != error_messages[i]) {
-      error_messages[i] = std::move(error_message);
-      modified = true;
+    if (devices != nullptr) {
+      auto error_message = (*devices)[i].GetErrorMessage();
+      if (error_message != error_messages[i]) {
+        error_messages[i] = std::move(error_message);
+        modified = true;
+      }
     }
   }
 
@@ -309,7 +337,7 @@ DeviceListWidget::UpdateButtons()
   } else
     disable_button->SetEnabled(false);
 
-  if (is_simulator() || current >= NUMDEV) {
+  if (is_simulator() || current >= NUMDEV || devices == nullptr) {
     reconnect_button->SetEnabled(false);
     flight_button->SetEnabled(false);
     manage_button->SetEnabled(false);
@@ -406,6 +434,13 @@ DeviceListWidget::OnPaintItem(Canvas &canvas, const PixelRect rc,
       buffer.append(_T("Radio"));
     }
 
+    if (flags.transponder) {
+      buffer.append(_T("; XPDR"));
+    }
+
+    if (flags.engine)
+      buffer.append(_T("; Engine"));
+
     if (flags.debug) {
       buffer.append(_T("; "));
       buffer.append(_("Debug"));
@@ -431,14 +466,8 @@ DeviceListWidget::OnPaintItem(Canvas &canvas, const PixelRect rc,
     }
 
     status = buffer;
-#ifdef ANDROID
-  } else if ((config.port_type == DeviceConfig::PortType::RFCOMM ||
-              config.port_type == DeviceConfig::PortType::BLE_HM10 ||
-              config.port_type == DeviceConfig::PortType::RFCOMM_SERVER) &&
-             bluetooth_helper != nullptr &&
-             !bluetooth_helper->IsEnabled(Java::GetEnv())) {
+  } else if (flags.bluetooth_disabled) {
     status = _("Bluetooth is disabled");
-#endif
   } else if (flags.duplicate) {
     status = _("Duplicate");
   } else if (flags.error) {
@@ -478,23 +507,30 @@ DeviceListWidget::EnableDisableCurrent()
   Profile::SetDeviceConfig(Profile::map, index, config);
   Profile::Save();
 
-  /* .. and reopen the device */
-
-  DeviceDescriptor &descriptor = (*devices)[index];
-  descriptor.SetConfig(config);
+  /* update the UI */
 
   GetList().Invalidate();
   UpdateButtons();
 
-  /* this OperationEnvironment instance must be persistent, because
-     DeviceDescriptor::Open() is asynchronous */
-  static MessageOperationEnvironment env;
-  descriptor.Reopen(env);
+  /* .. and reopen the device */
+
+  if (devices != nullptr) {
+    DeviceDescriptor &descriptor = (*devices)[index];
+    descriptor.SetConfig(config);
+
+    /* this OperationEnvironment instance must be persistent, because
+       DeviceDescriptor::Open() is asynchronous */
+    static MessageOperationEnvironment env;
+    descriptor.Reopen(env);
+  }
 }
 
 inline void
 DeviceListWidget::ReconnectCurrent()
 {
+  if (devices == nullptr)
+    return;
+
   const unsigned current = GetList().GetCursorIndex();
   if (current >= NUMDEV)
     return;
@@ -529,6 +565,9 @@ DeviceListWidget::ReconnectCurrent()
 inline void
 DeviceListWidget::DownloadFlightFromCurrent()
 {
+  if (devices == nullptr)
+    return;
+
   const unsigned current = GetList().GetCursorIndex();
   if (current >= NUMDEV)
     return;
@@ -576,23 +615,30 @@ DeviceListWidget::EditCurrent()
   Profile::SetDeviceConfig(Profile::map, index, config);
   Profile::Save();
 
-  /* .. and reopen the device */
-
-  DeviceDescriptor &descriptor = (*devices)[index];
-  descriptor.SetConfig(widget.GetConfig());
+  /* update the UI */
 
   GetList().Invalidate();
   UpdateButtons();
 
-  /* this OperationEnvironment instance must be persistent, because
-     DeviceDescriptor::Open() is asynchronous */
-  static MessageOperationEnvironment env;
-  descriptor.Reopen(env);
+  /* .. and reopen the device */
+
+  if (devices != nullptr) {
+    DeviceDescriptor &descriptor = (*devices)[index];
+    descriptor.SetConfig(widget.GetConfig());
+
+    /* this OperationEnvironment instance must be persistent, because
+       DeviceDescriptor::Open() is asynchronous */
+    static MessageOperationEnvironment env;
+    descriptor.Reopen(env);
+  }
 }
 
 inline void
 DeviceListWidget::ManageCurrent()
 {
+  if (devices == nullptr)
+    return;
+
   const unsigned current = GetList().GetCursorIndex();
   if (current >= NUMDEV)
     return;
@@ -636,8 +682,8 @@ DeviceListWidget::ManageCurrent()
     FlarmVersion version;
 
     {
-      const std::lock_guard lock{device_blackboard->mutex};
-      const NMEAInfo &basic = device_blackboard->RealState(current);
+      const std::lock_guard lock{device_blackboard.mutex};
+      const NMEAInfo &basic = device_blackboard.RealState(current);
       version = basic.flarm.version;
     }
 
@@ -646,8 +692,8 @@ DeviceListWidget::ManageCurrent()
     DeviceInfo info, secondary_info;
 
     {
-      const std::lock_guard lock{device_blackboard->mutex};
-      const NMEAInfo &basic = device_blackboard->RealState(current);
+      const std::lock_guard lock{device_blackboard.mutex};
+      const NMEAInfo &basic = device_blackboard.RealState(current);
       info = basic.device;
       secondary_info = basic.secondary_device;
     }
@@ -668,6 +714,9 @@ DeviceListWidget::ManageCurrent()
 inline void
 DeviceListWidget::MonitorCurrent()
 {
+  if (devices == nullptr)
+    return;
+
   const unsigned current = GetList().GetCursorIndex();
   if (current >= NUMDEV)
     return;
@@ -679,6 +728,9 @@ DeviceListWidget::MonitorCurrent()
 inline void
 DeviceListWidget::DebugCurrent()
 {
+  if (devices == nullptr)
+    return;
+
   const unsigned current = GetList().GetCursorIndex();
   if (current >= NUMDEV)
     return;
@@ -706,13 +758,14 @@ DeviceListWidget::OnGPSUpdate([[maybe_unused]] const MoreData &basic)
 }
 
 void
-ShowDeviceList()
+ShowDeviceList(DeviceBlackboard &device_blackboard, MultipleDevices *devices)
 {
   TWidgetDialog<DeviceListWidget>
     dialog(WidgetDialog::Full{}, UIGlobals::GetMainWindow(),
            UIGlobals::GetDialogLook(), _("Devices"));
   dialog.AddButton(_("Close"), mrOK);
-  dialog.SetWidget(UIGlobals::GetDialogLook());
+  dialog.SetWidget(device_blackboard, devices,
+                   UIGlobals::GetDialogLook());
   dialog.GetWidget().CreateButtons(dialog);
   dialog.EnableCursorSelection();
 

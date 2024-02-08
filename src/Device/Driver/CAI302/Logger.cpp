@@ -106,15 +106,15 @@ DownloadFlightInner(Port &port, const RecordedFlightInfo &flight,
   env.SetProgressRange(num_blocks);
 
   unsigned allocated_size = sizeof(CAI302::FileData) + bytes_per_block;
-  std::unique_ptr<uint8_t> allocated(new uint8_t[allocated_size]);
+  std::unique_ptr<uint8_t[]> allocated(new uint8_t[allocated_size]);
   // TODO: alignment?
   CAI302::FileData *header = (CAI302::FileData *)(void *)allocated.get();
-  void *data = header + 1;
+  const std::byte *data = reinterpret_cast<const std::byte *>(header + 1);
 
   unsigned current_block = 0;
   unsigned valid_bytes;
   do {
-    int i = UploadFileData(port, true, header, allocated_size, env);
+    int i = CAI302::UploadFileData(port, true, {(std::byte *)header, allocated_size}, env);
     if (i < (int)sizeof(*header))
       return false;
 
@@ -124,7 +124,7 @@ DownloadFlightInner(Port &port, const RecordedFlightInfo &flight,
     if ((unsigned)i < valid_bytes)
       return false;
 
-    os.Write(data, valid_bytes);
+    os.Write({data, valid_bytes});
 
     env.SetProgressPosition(current_block++);
   } while (valid_bytes == bytes_per_block);
@@ -139,7 +139,7 @@ DownloadFlightInner(Port &port, const RecordedFlightInfo &flight,
   if (valid_bytes > sizeof(signature.signature))
     return false;
 
-  os.Write(signature.signature, valid_bytes);
+  os.Write(std::as_bytes(std::span{signature.signature, valid_bytes}));
 
   os.Flush();
   fos.Commit();

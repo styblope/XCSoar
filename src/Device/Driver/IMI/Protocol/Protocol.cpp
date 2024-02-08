@@ -15,6 +15,7 @@
 #include "io/BufferedOutputStream.hxx"
 #include "io/FileOutputStream.hxx"
 #include "time/BrokenDateTime.hpp"
+#include "util/SpanCast.hxx"
 
 #include <memory>
 #include <stdexcept>
@@ -80,7 +81,7 @@ IMI::Connect(Port &port, OperationEnvironment &env)
     baudRate = 9600;
 
   Send(port, env,
-       MSG_CFG_STARTCONFIG, 0, 0, IMICOMM_BIGPARAM1(baudRate),
+       MSG_CFG_STARTCONFIG, {}, IMICOMM_BIGPARAM1(baudRate),
        IMICOMM_BIGPARAM2(baudRate));
 
   // get device info
@@ -145,7 +146,8 @@ IMI::DeclarationWrite(Port &port, const Declaration &decl,
               imiDecl.wp[size + 1]);
 
   // send declaration for current task
-  SendRet(port, env, MSG_DECLARATION, &imiDecl, sizeof(imiDecl),
+  SendRet(port, env, MSG_DECLARATION,
+          ReferenceAsBytes(imiDecl),
           MSG_ACK_SUCCESS, 0,
           -1, 0, 0,
           std::chrono::seconds{2});
@@ -162,7 +164,7 @@ IMI::ReadFlightList(Port &port, RecordedFlightList &flight_list,
 
   for (;; count++) {
     const auto msg = SendRet(port, env,
-                             MSG_FLIGHT_INFO, nullptr, 0, MSG_FLIGHT_INFO,
+                             MSG_FLIGHT_INFO, {}, MSG_FLIGHT_INFO,
                              -1, totalCount, address, addressStop,
                              std::chrono::seconds{2}, 6);
 
@@ -182,9 +184,12 @@ IMI::ReadFlightList(Port &port, RecordedFlightList &flight_list,
       ifi.start_time = start;
       ifi.end_time = ConvertToDateTime(fi->finish);
       ifi.internal.imi = fi->address;
+
+      if (flight_list.full())
+        break;
     }
 
-    if (msg.payloadSize == 0 || address == 0xFFFF)
+    if (msg.payloadSize == 0 || address == 0xFFFF || flight_list.full())
       return true;
   }
 

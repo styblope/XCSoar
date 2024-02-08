@@ -12,11 +12,11 @@ Copy(Reader &r, OutputStream &w)
 {
 	while (true) {
 		std::byte buffer[65536];
-		auto n = r.Read(buffer, sizeof(buffer));
+		auto n = r.Read(buffer);
 		if (n == 0)
 			break;
 
-		w.Write(buffer, n);
+		w.Write(std::span{buffer}.first(n));
 	}
 }
 

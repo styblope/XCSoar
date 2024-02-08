@@ -4,7 +4,6 @@
 #include "RulesStatusPanel.hpp"
 #include "util/Macros.hpp"
 #include "util/TruncateString.hpp"
-#include "Components.hpp"
 #include "Interface.hpp"
 #include "Formatter/UserUnits.hpp"
 #include "Formatter/LocalTimeFormatter.hpp"
@@ -13,6 +12,8 @@
 #include "Engine/Task/TaskManager.hpp"
 #include "Engine/Task/Ordered/OrderedTask.hpp"
 #include "Engine/Task/Ordered/Points/OrderedTaskPoint.hpp"
+#include "Components.hpp"
+#include "BackendComponents.hpp"
 
 enum Controls {
   ValidStart,
@@ -35,13 +36,13 @@ RulesStatusPanel::Refresh() noexcept
   const ComputerSettings &settings = CommonInterface::GetComputerSettings();
 
   /// @todo proper task validity check
-  SetText(ValidStart, start_stats.task_started
+  SetText(ValidStart, start_stats.HasStarted()
           ? _("Yes") : _T("No"));
 
   SetText(ValidFinish, task_stats.task_finished
           ? _("Yes") : _T("No"));
 
-  if (start_stats.task_started) {
+  if (start_stats.HasStarted()) {
     SetText(StartTime,
             FormatLocalTimeHHMM(start_stats.time, settings.utc_offset));
 
@@ -58,8 +59,8 @@ RulesStatusPanel::Refresh() noexcept
   Temp[0] = _T('\0');
   double finish_height(0);
 
-  if (protected_task_manager != nullptr) {
-    ProtectedTaskManager::Lease task_manager(*protected_task_manager);
+  if (backend_components->protected_task_manager) {
+    ProtectedTaskManager::Lease task_manager{*backend_components->protected_task_manager};
     const OrderedTask &task = task_manager->GetOrderedTask();
     const unsigned task_size = task.TaskSize();
 

@@ -21,7 +21,8 @@
 
 bool
 GlueMapWindow::ShowMapItems(const GeoPoint &location,
-                            bool show_empty_message) const
+                            bool show_empty_message,
+                            bool pointer_in_use) const noexcept
 {
   /* not using MapWindowBlackboard here because this method is called
      by the main thread */
@@ -31,7 +32,12 @@ GlueMapWindow::ShowMapItems(const GeoPoint &location,
   const MoreData &basic = CommonInterface::Basic();
   const DerivedInfo &calculated = CommonInterface::Calculated();
 
-  auto range = visible_projection.DistancePixelsToMeters(Layout::GetHitRadius());
+  int range;
+  if (pointer_in_use)
+    range = visible_projection.DistancePixelsToMeters(Layout::GetHitRadius());
+  else
+    /* FastScale 29 is the radius of the shortest point in the cross hair */
+    range = visible_projection.DistancePixelsToMeters(Layout::FastScale(29));
 
   MapItemList list;
   MapItemListBuilder builder(list, location, range);
@@ -60,8 +66,10 @@ GlueMapWindow::ShowMapItems(const GeoPoint &location,
   if (visible_projection.GetMapScale() <= 4000) {
     builder.AddThermals(calculated.thermal_locator, basic, calculated);
 
-    if (tim_glue != nullptr && computer_settings.weather.enable_tim)
+    if (tim_glue != nullptr && computer_settings.weather.enable_tim) {
+      const auto lock = tim_glue->Lock();
       builder.AddThermals(tim_glue->Get());
+    }
   }
 
   if (waypoints)
@@ -107,6 +115,7 @@ GlueMapWindow::ShowMapItems(const GeoPoint &location,
   ShowMapItemListDialog(list,
                         UIGlobals::GetDialogLook(), look, traffic_look,
                         final_glide_bar_renderer.GetLook(), settings,
+                        waypoints,
                         glide_computer != nullptr
                         ? &glide_computer->GetAirspaceWarnings() : nullptr);
   return true;

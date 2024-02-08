@@ -9,8 +9,15 @@
 #include "NMEA/Checksum.hpp"
 #include "Atmosphere/Pressure.hpp"
 #include "RadioFrequency.hpp"
+#include "TransponderCode.hpp"
 #include "Units/System.hpp"
 #include "Math/Util.hpp"
+#include "util/StaticString.hxx"
+#include "util/Macros.hpp"
+#include "Formatter/NMEAFormatter.hpp"
+#include "NMEA/MoreData.hpp"
+#include "Operation/Operation.hpp"
+#include "time/PeriodClock.hpp"
 
 using std::string_view_literals::operator""sv;
 
@@ -68,8 +75,32 @@ ParsePAAVS(NMEAInputLine &line, NMEAInfo &info)
     unsigned volume;
     if (line.ReadChecked(volume))
       info.settings.ProvideVolume(volume, info.clock);
+  } else if (type == "XPDR"sv) {
+    /*
+    $PAAVS,XPDR,<SQUAWK>,<ACTIVE>,<ALTINH>
+    <SQUAWK> Squawk code value;
+             Octal unsigned integer value between 0000 and 7777 (digits 0–7).
+    <ACTIVE> Active flag;
+             0: standby (transponder is switched off / "SBY" mode)
+             1: active (transponder is switched on / "ALT" or "ON" mode
+                dependent of ALTINH)
+    <ALTINH> Altitude inhibit flag;
+             0: transmit altitude ("ALT" mode if active)
+             1: do not transmit altitude ("ON" mode if active)
+     */
+    unsigned code_value;
+    if (line.ReadChecked(code_value)) {
+      StaticString<16> buffer;
+      buffer.Format(_T("%04u"), code_value);
+      TransponderCode parsed_code = TransponderCode::Parse(buffer);
+
+      if (!parsed_code.IsDefined())
+        return false;
+
+      info.settings.transponder_code = parsed_code;
+      info.settings.has_transponder_code.Update(info.clock);
+    }
   } else {
-    // ignore responses from XPDR
     return false;
   }
 
@@ -78,6 +109,7 @@ ParsePAAVS(NMEAInputLine &line, NMEAInfo &info)
 
 class ACDDevice : public AbstractDevice {
   Port &port;
+  PeriodClock status_clock;
 
 public:
   ACDDevice(Port &_port):port(_port) {}
@@ -90,6 +122,8 @@ public:
   bool PutStandbyFrequency(RadioFrequency frequency,
                            const TCHAR *name,
                            OperationEnvironment &env) override;
+  bool PutTransponderCode(TransponderCode code, OperationEnvironment &env) override;
+  void OnSensorUpdate(const MoreData &basic) override;
 };
 
 bool
@@ -124,6 +158,15 @@ ACDDevice::PutStandbyFrequency(RadioFrequency frequency,
 }
 
 bool
+ACDDevice::PutTransponderCode(TransponderCode code, OperationEnvironment &env)
+{
+  char buffer[100];
+  sprintf(buffer, "PAAVC,S,XPDR,SQUAWK,%04o", code.GetCode());
+  PortWriteNMEA(port, buffer, env);
+  return true;
+}
+
+bool
 ACDDevice::ParseNMEA(const char *_line, NMEAInfo &info)
 {
   if (!VerifyNMEAChecksum(_line))
@@ -135,6 +178,27 @@ ACDDevice::ParseNMEA(const char *_line, NMEAInfo &info)
     return ParsePAAVS(line, info);
   else
     return false;
+}
+
+void
+ACDDevice::OnSensorUpdate(const MoreData &basic)
+{
+  NullOperationEnvironment env;
+
+  if (basic.gps.fix_quality != FixQuality::NO_FIX &&
+      status_clock.CheckUpdate(std::chrono::seconds(1))) {
+
+    char buffer[100];
+
+    FormatGPRMC(buffer, sizeof(buffer), basic);
+    PortWriteNMEA(port, buffer, env);
+
+    FormatGPGSA(buffer, sizeof(buffer), basic);
+    PortWriteNMEA(port, buffer, env);
+
+    FormatGPGGA(buffer, sizeof(buffer), basic);
+    PortWriteNMEA(port, buffer, env);
+  }
 }
 
 static Device *

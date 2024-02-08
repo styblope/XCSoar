@@ -63,7 +63,7 @@ struct MapItemListSettings {
   /** Add an ArrivalAltitudeMapItem to the MapItemList? */
   bool add_arrival_altitude;
 
-  void SetDefaults();
+  void SetDefaults() noexcept;
 };
 
 static_assert(std::is_trivial<MapItemListSettings>::value, "type is not trivial");
@@ -91,7 +91,7 @@ struct TrailSettings {
     FULL,
   } length;
 
-  void SetDefaults();
+  void SetDefaults() noexcept;
 };
 
 static_assert(std::is_trivial<TrailSettings>::value, "type is not trivial");
@@ -156,6 +156,11 @@ struct MapSettings {
    */
   bool show_flarm_alarm_level;
 
+  /**
+   * Keep showing traffic for a while after it has disappeared?
+   */
+  bool fade_traffic;
+
   /** Display climb band on map */
   bool show_thermal_profile;
 
@@ -183,7 +188,7 @@ struct MapSettings {
   TrailSettings trail;
   MapItemListSettings item_list;
 
-  void SetDefaults();
+  void SetDefaults() noexcept;
 };
 
 static_assert(std::is_trivial<MapSettings>::value, "type is not trivial");

@@ -5,6 +5,7 @@
 
 #include "Charset.hpp"
 #include "util/ReusableArray.hpp"
+#include "util/tstring_view.hxx"
 
 #include <tchar.h>
 
@@ -20,20 +21,6 @@ public:
   explicit StringConverter(Charset cs=Charset::AUTO) noexcept
     :charset(cs) {}
 
-  /**
-   * Does the given string start with the UTF-8 byte order mark?  This
-   * is often a prefix which marks a file/string as UTF-8.
-   */
-  [[gnu::pure]]
-  static bool IsByteOrderMark(const char *s) noexcept {
-    return s[0] == (char)0xef && s[1] == (char)0xbb && s[2] == (char)0xbf;
-  }
-
-  [[gnu::pure]]
-  static char *SkipByteOrderMark(char *s) noexcept {
-    return IsByteOrderMark(s) ? s + 3 : nullptr;
-  }
-
   bool IsAuto() const noexcept {
     return charset == Charset::AUTO;
   }
@@ -43,6 +30,17 @@ public:
   }
 
   /**
+   * Feed a string from the file and attempt to auto-detect the
+   * charset.  Returns a pointer into the string after a byte-order
+   * marker.
+   */
+  [[gnu::pure]]
+  char *DetectStrip(char *src) noexcept;
+
+  [[gnu::pure]]
+  std::string_view DetectStrip(std::string_view src) noexcept;
+
+  /**
    * Convert the given string.  The returned pointer may be the given
    * pointer or owned by this class and will be invalidated by the
    * next Convert() call.
@@ -50,4 +48,6 @@ public:
    * Throws on error.
    */
   TCHAR *Convert(char *src);
+
+  tstring_view Convert(std::string_view src);
 };

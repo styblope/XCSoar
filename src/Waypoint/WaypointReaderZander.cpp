@@ -3,33 +3,36 @@
 
 #include "WaypointReaderZander.hpp"
 #include "Waypoint/Waypoints.hpp"
+#include "util/StringStrip.hxx"
 
 #include <stdlib.h>
 
 static bool
-ParseString(const TCHAR* src, tstring& dest, unsigned len)
+ParseString(StringConverter &string_converter,
+            std::string_view src, tstring &dest, std::size_t len) noexcept
 {
-  if (src[0] == 0)
-    return true;
+  if (src.empty())
+    return false;
 
-  dest.assign(src);
+  src = Strip(src);
+
+  if (src.size() > len)
+    src = src.substr(0, len);
 
   // Cut the string after the first space, tab or null character
-  size_t found = dest.find_first_of(_T("\t\0"));
-  if (found != tstring::npos)
-    dest = dest.substr(0, found);
+  if (auto i = src.find_first_of("\t\0"); i != src.npos)
+    src = src.substr(0, i);
 
-  dest = dest.substr(0, len);
-  trim_inplace(dest);
+  dest.assign(string_converter.Convert(src));
   return true;
 }
 
 static bool
-ParseAngle(const TCHAR* src, Angle& dest, const bool lat)
+ParseAngle(const char *src, Angle &dest, const bool lat) noexcept
 {
-  TCHAR *endptr;
+  char *endptr;
 
-  long deg = _tcstol(src, &endptr, 10);
+  long deg = strtol(src, &endptr, 10);
   if (endptr == src || deg < 0)
     return false;
 
@@ -58,11 +61,11 @@ ParseAngle(const TCHAR* src, Angle& dest, const bool lat)
 }
 
 static bool
-ParseAltitude(const TCHAR *src, double &dest)
+ParseAltitude(const char *src, double &dest) noexcept
 {
   // Parse string
-  TCHAR *endptr;
-  double val = _tcstod(src, &endptr);
+  char *endptr;
+  double val = strtod(src, &endptr);
   if (endptr == src)
     return false;
 
@@ -72,7 +75,7 @@ ParseAltitude(const TCHAR *src, double &dest)
 }
 
 static bool
-ParseFlags(const TCHAR* src, Waypoint &dest)
+ParseFlags(const char *src, Waypoint &dest) noexcept
 {
   // WP = Waypoint
   // HA = Home Field
@@ -112,7 +115,7 @@ ParseFlags(const TCHAR* src, Waypoint &dest)
 }
 
 static bool
-ParseFlagsFromDescription(const TCHAR* src, Waypoint &dest)
+ParseFlagsFromDescription(const char *src, Waypoint &dest) noexcept
 {
   // If the description starts with 1 the waypoint is an airport
   // (usually the description of an airport is the frequency)
@@ -127,7 +130,7 @@ ParseFlagsFromDescription(const TCHAR* src, Waypoint &dest)
 }
 
 bool
-WaypointReaderZander::ParseLine(const TCHAR* line, Waypoints &way_points)
+WaypointReaderZander::ParseLine(const char *line, Waypoints &way_points)
 {
   // If (end-of-file or comment)
   if (line[0] == '\0' || line[0] == '*')
@@ -135,7 +138,7 @@ WaypointReaderZander::ParseLine(const TCHAR* line, Waypoints &way_points)
     return true;
 
   // Determine the length of the line
-  size_t len = _tcslen(line);
+  size_t len = strlen(line);
   // If less then 34 characters -> something is wrong -> cancel
   if (len < 34)
     return false;
@@ -155,18 +158,19 @@ WaypointReaderZander::ParseLine(const TCHAR* line, Waypoints &way_points)
   Waypoint new_waypoint = factory.Create(location);
 
   // Name (Characters 0-12)
-  if (!ParseString(line, new_waypoint.name, 12))
+  if (!ParseString(string_converter, line, new_waypoint.name, 12))
     return false;
 
   // Altitude (Characters 30-34 // e.g. 1561 (in meters))
   /// @todo configurable behaviour
-  if (!ParseAltitude(line + 30, new_waypoint.elevation) &&
-      !factory.FallbackElevation(new_waypoint))
-    return false;
+  if (ParseAltitude(line + 30, new_waypoint.elevation))
+    new_waypoint.has_elevation = true;
+  else
+    factory.FallbackElevation(new_waypoint);
 
   // Description (Characters 35-44)
   if (len > 35)
-    ParseString(line + 35, new_waypoint.comment, 9);
+    ParseString(string_converter, line + 35, new_waypoint.comment, 9);
 
   // Flags (Characters 45-49)
   if (len < 46 || !ParseFlags(line + 45, new_waypoint))

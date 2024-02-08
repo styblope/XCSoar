@@ -7,7 +7,7 @@
 #include "Interface.hpp"
 #include "ActionInterface.hpp"
 #include "Profile/Profile.hpp"
-#include "Profile/ProfileKeys.hpp"
+#include "Profile/Keys.hpp"
 #include "UIGlobals.hpp"
 #include "MapWindow/GlueMapWindow.hpp"
 #include "Units/Units.hpp"
@@ -15,7 +15,9 @@
 #include "Pan.hpp"
 #include "PageActions.hpp"
 #include "Math/Constants.hpp"
-#include "util/Clamp.hpp"
+#include "Screen/Layout.hpp"
+
+#include <algorithm> // for std::clamp()
 
 // eventAutoZoom - Turn on|off|toggle AutoZoom
 // misc:
@@ -143,9 +145,8 @@ InputEvents::sub_PanCursor(int dx, int dy)
     return;
 
   auto pt = projection.GetScreenOrigin();
-  const auto size = projection.GetScreenSize();
-  pt.x -= dx * int(size.width) / 4;
-  pt.y -= dy * int(size.height) / 4;
+  pt.x -= dx * Layout::FastScale(40);
+  pt.y -= dy * Layout::FastScale(40);
   map_window->SetLocation(projection.ScreenToGeo(pt));
 
   map_window->QuickRedraw();
@@ -196,7 +197,7 @@ InputEvents::sub_SetZoom(double value)
     ? scale_100m
     : std::max(scale_100m, scale_2min_distance);
 
-  value = Clamp(value, minreasonable, scale_1600km);
+  value = std::clamp(value, minreasonable, scale_1600km);
   map_window->SetMapScale(value);
   map_window->QuickRedraw();
 }

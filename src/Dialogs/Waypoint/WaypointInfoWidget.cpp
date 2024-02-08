@@ -123,7 +123,10 @@ WaypointInfoWidget::Prepare(ContainerWindow &parent,
                      buffer.buffer(), buffer.capacity()) != nullptr)
     AddReadOnly(_("Location"), nullptr, buffer);
 
-  AddReadOnly(_("Elevation"), nullptr, FormatUserAltitude(waypoint->elevation));
+  if (waypoint->has_elevation)
+    AddReadOnly(_("Elevation"), nullptr, FormatUserAltitude(waypoint->elevation));
+  else
+    AddReadOnly(_("Elevation"), nullptr, _T("?"));
 
   if (basic.time_available && basic.date_time_utc.IsDatePlausible()) {
     const SunEphemeris::Result sun =
@@ -142,17 +145,15 @@ WaypointInfoWidget::Prepare(ContainerWindow &parent,
   if (basic.location_available) {
     const GeoVector vector = basic.location.DistanceBearing(waypoint->location);
 
-    TCHAR distance_buffer[32];
-    FormatUserDistanceSmart(vector.distance, distance_buffer,
-                                   ARRAY_SIZE(distance_buffer));
-
     FormatBearing(buffer.buffer(), buffer.capacity(),
-                  vector.bearing, distance_buffer);
+                  vector.bearing,
+                  FormatUserDistanceSmart(vector.distance));
     AddReadOnly(_("Bearing and Distance"), nullptr, buffer);
   }
 
   if (basic.location_available && basic.NavAltitudeAvailable() &&
-      settings.polar.glide_polar_task.IsValid()) {
+      settings.polar.glide_polar_task.IsValid() &&
+      waypoint->has_elevation) {
     const GlideState glide_state(basic.location.DistanceBearing(waypoint->location),
                                  waypoint->elevation + settings.task.safety_height_arrival,
                                  basic.nav_altitude,
@@ -175,7 +176,8 @@ WaypointInfoWidget::Prepare(ContainerWindow &parent,
                                     glide_state));
   }
 
-  if (basic.location_available && basic.NavAltitudeAvailable()) {
+  if (basic.location_available && basic.NavAltitudeAvailable() &&
+      waypoint->has_elevation) {
     const TaskBehaviour &task_behaviour =
       CommonInterface::GetComputerSettings().task;
 

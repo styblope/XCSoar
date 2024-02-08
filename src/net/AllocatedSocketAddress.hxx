@@ -116,6 +116,10 @@ public:
 		size = 0;
 	}
 
+	bool IsInet() const noexcept {
+		return GetFamily() == AF_INET || GetFamily() == AF_INET6;
+	}
+
 #ifdef HAVE_UN
 	/**
 	 * @see SocketAddress::GetLocalRaw()
@@ -181,6 +185,11 @@ public:
 		return WithPort(*this, port);
 	}
 #endif
+
+	[[gnu::pure]]
+	std::span<const std::byte> GetSteadyPart() const noexcept {
+		return SocketAddress{*this}.GetSteadyPart();
+	}
 
 private:
 	void SetSize(size_type new_size) noexcept;

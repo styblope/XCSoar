@@ -13,6 +13,7 @@
 #include "io/BufferedOutputStream.hxx"
 #include "io/FileOutputStream.hxx"
 #include "util/ScopeExit.hxx"
+#include "util/SpanCast.hxx"
 
 #include <memory>
 
@@ -104,7 +105,9 @@ ReadFlightListInner(Port &port, RecordedFlightList &flight_list,
   bool success = false;
   while (!flight_list.full()) {
     LX::FlightInfo flight;
-    if (!LX::ReadCRC(port, &flight, sizeof(flight), env,
+    if (!LX::ReadCRC(port,
+                     ReferenceAsWritableBytes(flight),
+                     env,
                      std::chrono::seconds(20),
                      std::chrono::seconds(2),
                      std::chrono::minutes(3)))
@@ -161,12 +164,13 @@ DownloadFlightInner(Port &port, const RecordedFlightInfo &flight,
   LX::SeekMemory seek;
   seek.start_address = flight.internal.lx.start_address;
   seek.end_address = flight.internal.lx.end_address;
-  LX::SendPacket(port, LX::SEEK_MEMORY, &seek, sizeof(seek), env);
+  LX::SendPacket(port, LX::SEEK_MEMORY, ReferenceAsBytes(seek), env);
   LX::ExpectACK(port, env);
 
   LX::MemorySection memory_section;
   if (!LX::ReceivePacketRetry(port, LX::READ_MEMORY_SECTION,
-                              &memory_section, sizeof(memory_section), env,
+                              ReferenceAsWritableBytes(memory_section),
+                              env,
                               std::chrono::seconds(5),
                               std::chrono::seconds(2),
                               std::chrono::minutes(1), 2))
@@ -181,11 +185,11 @@ DownloadFlightInner(Port &port, const RecordedFlightInfo &flight,
 
   env.SetProgressRange(total_length);
 
-  const auto data = std::make_unique<uint8_t[]>(total_length);
-  uint8_t *p = data.get();
+  const auto data = std::make_unique<std::byte[]>(total_length);
+  std::byte *p = data.get();
   for (unsigned i = 0; i < LX::MemorySection::N && lengths[i] > 0; ++i) {
     if (!LX::ReceivePacketRetry(port, (LX::Command)(LX::READ_LOGGER_DATA + i),
-                                p, lengths[i], env,
+                                {p, lengths[i]}, env,
                                 std::chrono::seconds(20),
                                 std::chrono::seconds(2),
                                 std::chrono::minutes(5), 2)) {

@@ -29,6 +29,8 @@
 #include "util/Macros.hpp"
 #include "util/StringCompare.hxx"
 #include "UIGlobals.hpp"
+#include "Components.hpp"
+#include "DataComponents.hpp"
 
 #include <cassert>
 
@@ -236,8 +238,8 @@ TaskEditPanel::OnPaintItem(Canvas &canvas, const PixelRect rc,
 
   if (show_leg_info) {
     // Draw leg distance
-    FormatUserDistanceSmart(leg.distance, buffer, true);
-    const int x1 = row_renderer.DrawRightFirstRow(canvas, rc, buffer);
+    const int x1 = row_renderer.DrawRightFirstRow(canvas, rc,
+                                                  FormatUserDistanceSmart(leg.distance));
 
     // Draw leg bearing
     FormatBearing(buffer, ARRAY_SIZE(buffer), leg.bearing);
@@ -293,7 +295,8 @@ TaskEditPanel::EditTaskPoint(unsigned ItemIndex)
 
     AbstractTaskFactory &factory = ordered_task->GetFactory();
     auto way_point =
-      ShowWaypointListDialog(ordered_task->TaskSize() > 0
+      ShowWaypointListDialog(*data_components->waypoints,
+                             ordered_task->TaskSize() > 0
                              ? ordered_task->GetPoint(ordered_task->TaskSize() - 1).GetLocation()
                              : CommonInterface::Basic().location,
                         ordered_task, ItemIndex);

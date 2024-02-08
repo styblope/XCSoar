@@ -12,8 +12,8 @@
 #include "Form/DataField/Prefix.hpp"
 #include "Form/DataField/Listener.hpp"
 #include "FLARM/FlarmNetRecord.hpp"
-#include "FLARM/FlarmDetails.hpp"
-#include "FLARM/FlarmId.hpp"
+#include "FLARM/Details.hpp"
+#include "FLARM/Id.hpp"
 #include "FLARM/Global.hpp"
 #include "FLARM/TrafficDatabases.hpp"
 #include "util/StaticString.hxx"
@@ -29,6 +29,8 @@
 #include "Tracking/TrackingGlue.hpp"
 #include "Engine/Waypoint/Waypoints.hpp"
 #include "Components.hpp"
+#include "NetComponents.hpp"
+#include "DataComponents.hpp"
 #include "Pan.hpp"
 
 using namespace std::chrono;
@@ -384,8 +386,9 @@ TrafficListWidget::UpdateList()
 #ifdef HAVE_SKYLINES_TRACKING
     /* show SkyLines traffic unless this is a FLARM traffic picker
        dialog (from dlgTeamCode) */
-    if (buttons != nullptr) {
-      const auto &data = tracking->GetSkyLinesData();
+    if (buttons != nullptr && net_components != nullptr &&
+        net_components->tracking) {
+      const auto &data = net_components->tracking->GetSkyLinesData();
       const std::lock_guard lock{data.mutex};
       for (const auto &i : data.traffic) {
         const auto name_i = data.user_names.find(i.first);
@@ -403,8 +406,8 @@ TrafficListWidget::UpdateList()
             item.vector = GeoVector(CommonInterface::Basic().location,
                                     i.second.location);
 
-          const auto wp = way_points.GetNearestLandable(i.second.location,
-                                                        20000);
+          const auto wp = data_components->waypoints->GetNearestLandable(i.second.location,
+                                                                         20000);
           if (wp != nullptr) {
             item.near_name = wp->name.c_str();
             item.near_distance = wp->location.DistanceS(i.second.location);
@@ -460,8 +463,9 @@ TrafficListWidget::UpdateVolatile()
         i.vector.SetInvalid();
       }
 #ifdef HAVE_SKYLINES_TRACKING
-    } else if (i.IsSkyLines()) {
-      const auto &data = tracking->GetSkyLinesData();
+    } else if (i.IsSkyLines() && net_components != nullptr &&
+               net_components->tracking) {
+      const auto &data = net_components->tracking->GetSkyLinesData();
       const std::lock_guard lock{data.mutex};
 
       auto live = data.traffic.find(i.skylines_id);

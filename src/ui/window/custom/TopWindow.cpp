@@ -10,6 +10,8 @@
 #include "Hardware/CPU.hpp"
 
 #ifdef ANDROID
+#include "Android/Main.hpp"
+#include "Android/NativeView.hpp"
 #include "ui/event/android/Loop.hpp"
 #include "util/ScopeExit.hxx"
 #elif defined(ENABLE_SDL)
@@ -20,6 +22,10 @@
 #include "ui/event/shared/Event.hpp"
 #endif
 
+#ifdef ENABLE_OPENGL
+#include "ui/canvas/opengl/Dynamic.hpp" // for GLExt::discard_framebuffer
+#endif
+
 #ifdef DRAW_MOUSE_CURSOR
 #include "Screen/Layout.hpp"
 #endif
@@ -28,6 +34,10 @@ namespace UI {
 
 TopWindow::~TopWindow() noexcept
 {
+#ifdef ANDROID
+  native_view->SetPointer(Java::GetEnv(), nullptr);
+#endif
+
   delete screen;
 }
 
@@ -128,19 +138,36 @@ TopWindow::Expose() noexcept
     OnPaint(canvas);
 
 #ifdef DRAW_MOUSE_CURSOR
-    DrawMouseCursor(canvas);
+    if (std::chrono::steady_clock::now() < cursor_visible_until)
+      DrawMouseCursor(canvas);
 #endif
 
     screen->Unlock();
   }
 
   screen->Flip();
+
+#if defined(ENABLE_OPENGL) && defined(GL_EXT_discard_framebuffer)
+  /* tell the GPU that we won't be needing the frame buffer contents
+     again which can increase rendering performance; see
+     https://registry.khronos.org/OpenGL/extensions/EXT/EXT_discard_framebuffer.txt */
+  if (GLExt::discard_framebuffer != nullptr) {
+    static constexpr GLenum attachments[3] = {
+      GL_COLOR_EXT,
+      GL_DEPTH_EXT,
+      GL_STENCIL_EXT
+    };
+
+    GLExt::discard_framebuffer(GL_FRAMEBUFFER, std::size(attachments),
+                               attachments);
+  }
+#endif
 }
 
 void
 TopWindow::Refresh() noexcept
 {
-  if (!CheckResumeSurface())
+  if (!screen->IsReady())
     /* the application is paused/suspended, and we don't have an
        OpenGL surface - ignore all drawing requests */
     return;

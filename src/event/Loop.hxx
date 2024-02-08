@@ -6,7 +6,6 @@
 #include "Chrono.hxx"
 #include "TimerWheel.hxx"
 #include "Backend.hxx"
-#include "SocketEvent.hxx"
 #include "event/Features.h"
 #include "time/ClockCache.hxx"
 #include "util/IntrusiveList.hxx"
@@ -17,11 +16,11 @@
 
 #ifdef HAVE_THREADED_EVENT_LOOP
 #include "WakeFD.hxx"
+#include "SocketEvent.hxx"
 #include "thread/Id.hxx"
 #include "thread/Mutex.hxx"
 #endif
 
-#include <atomic>
 #include <cassert>
 
 #include "io/uring/Features.h"
@@ -31,6 +30,7 @@ namespace Uring { class Queue; class Manager; }
 #endif
 
 class DeferEvent;
+class SocketEvent;
 class InjectEvent;
 
 /**
@@ -44,6 +44,8 @@ class InjectEvent;
  */
 class EventLoop final
 {
+	EventPollBackend poll_backend;
+
 #ifdef HAVE_THREADED_EVENT_LOOP
 	WakeFD wake_fd;
 	SocketEvent wake_event{*this, BIND_THIS_METHOD(OnSocketReady), wake_fd.GetSocket()};
@@ -80,8 +82,8 @@ class EventLoop final
 	SocketList sockets;
 
 	/**
-	 * A linked list of #SocketEvent instances which have a
-	 * non-zero "ready_flags" field, and need to be dispatched.
+	 * A list of #SocketEvent instances which have a non-zero
+	 * "ready_flags" field, and need to be dispatched.
 	 */
 	SocketList ready_sockets;
 
@@ -134,8 +136,6 @@ class EventLoop final
 	bool uring_initialized = false;
 #endif
 
-	EventPollBackend poll_backend;
-
 	ClockCache<std::chrono::steady_clock> steady_clock_cache;
 
 public:
@@ -172,6 +172,10 @@ public:
 #endif
 
 		return steady_clock_cache.now();
+	}
+
+	void FlushClockCaches() noexcept {
+		steady_clock_cache.flush();
 	}
 
 #ifdef HAVE_URING

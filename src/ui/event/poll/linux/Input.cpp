@@ -123,7 +123,7 @@ LinuxInputDevice::Read() noexcept
   FileDescriptor fd = event.GetFileDescriptor();
 
   struct input_event buffer[64];
-  const auto nbytes = fd.Read(buffer, sizeof(buffer));
+  const auto nbytes = fd.Read(std::as_writable_bytes(std::span{buffer}));
   if (nbytes < 0) {
     /* device has failed or was unplugged - bail out */
     if (errno != EAGAIN && errno != EINTR)
@@ -194,9 +194,9 @@ LinuxInputDevice::Read() noexcept
          * on the executing shell. This fixes #3403. */
         tcflush(STDIN_FILENO, TCIFLUSH);
 
-        bool is_char;
+        const auto [translated_key_code, is_char] = TranslateKeyCode(e.code);
         Event ev(e.value ? Event::KEY_DOWN : Event::KEY_UP,
-                 TranslateKeyCode(e.code, is_char));
+                 translated_key_code);
         ev.is_char = is_char;
         queue.Push(ev);
       }

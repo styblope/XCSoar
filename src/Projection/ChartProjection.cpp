@@ -2,7 +2,7 @@
 // Copyright The XCSoar Project
 
 #include "ChartProjection.hpp"
-#include "Engine/Task/Ordered/OrderedTask.hpp"
+#include "Geo/Flat/TaskProjection.hpp"
 #include "Engine/Task/Ordered/Points/OrderedTaskPoint.hpp"
 
 void
@@ -14,13 +14,6 @@ ChartProjection::Set(const PixelRect &rc,
   const auto radius = std::max(double(10000),
                                task_projection.ApproxRadius() * radius_factor);
   Set(rc, center, radius);
-}
-
-void
-ChartProjection::Set(const PixelRect &rc, const OrderedTask &task) noexcept
-{
-  const auto radius = std::max(double(10000), task.GetTaskRadius());
-  Set(rc, task.GetTaskCenter(), radius);
 }
 
 void
@@ -40,6 +33,6 @@ ChartProjection::Set(const PixelRect &rc, const GeoPoint &center,
   SetMapRect(rc);
   SetScaleFromRadius(radius);
   SetGeoLocation(center);
-  SetScreenOrigin((rc.left + rc.right) / 2, (rc.bottom + rc.top) / 2);
+  SetScreenOrigin(rc.GetCenter());
   UpdateScreenBounds();
 }

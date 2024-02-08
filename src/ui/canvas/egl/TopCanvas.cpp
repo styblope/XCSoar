@@ -6,7 +6,6 @@
 #include "ui/display/Display.hpp"
 #include "ui/dim/Size.hpp"
 #include "system/Error.hxx"
-#include "util/RuntimeError.hxx"
 #include "LogFile.hpp"
 
 #ifdef ANDROID
@@ -15,6 +14,9 @@
 
 #include <android/native_window_jni.h>
 #endif
+
+#include <cassert>
+#include <stdexcept>
 
 #include <stdio.h>
 
@@ -60,6 +62,8 @@ TopCanvas::TopCanvas(UI::Display &_display)
 void
 TopCanvas::CreateSurface(EGLNativeWindowType native_window)
 {
+  assert(surface == EGL_NO_SURFACE);
+
   surface = display.CreateWindowSurface(native_window);
 
   const PixelSize effective_size = GetNativeSize();
@@ -102,6 +106,8 @@ TopCanvas::GetNativeSize() const noexcept
 bool
 TopCanvas::AcquireSurface()
 {
+  assert(surface == EGL_NO_SURFACE);
+
   const auto env = Java::GetEnv();
   const auto android_surface = native_view->GetSurface(env);
   if (!android_surface)
@@ -110,6 +116,9 @@ TopCanvas::AcquireSurface()
 
   ANativeWindow *native_window =
     ANativeWindow_fromSurface(env, android_surface.Get());
+  if (native_window == nullptr)
+    return false;
+
   CreateSurface(native_window);
 
   return true;
@@ -131,6 +140,8 @@ TopCanvas::ReleaseSurface() noexcept
 void
 TopCanvas::Flip()
 {
+  assert(surface != EGL_NO_SURFACE);
+
   if (!display.SwapBuffers(surface)) {
 #ifdef ANDROID
     LogFormat("eglSwapBuffers() failed: 0x%x", eglGetError());

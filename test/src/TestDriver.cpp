@@ -209,7 +209,7 @@ TestFLARM()
     skip(12, 0, "traffic == NULL");
   }
 
-  ok1(parser.ParseLine("$PFLAA,0,1206,574,21,2,DDAED5,196,,32,1.0,1*10",
+  ok1(parser.ParseLine("$PFLAA,0,1206,574,21,2,DDAED5,196,,32,1.0,C*62",
                        nmea_info));
   ok1(nmea_info.flarm.traffic.GetActiveTrafficCount() == 3);
 
@@ -228,7 +228,7 @@ TestFLARM()
     ok1(traffic->speed_received);
     ok1(equals(traffic->climb_rate, 1.0));
     ok1(traffic->climb_rate_received);
-    ok1(traffic->type == FlarmTraffic::AircraftType::GLIDER);
+    ok1(traffic->type == FlarmTraffic::AircraftType::AIRSHIP);
     ok1(!traffic->stealth);
   } else {
     skip(15, 0, "traffic == NULL");
@@ -1494,8 +1494,17 @@ TestACD()
   nmea_info.Reset();
   nmea_info.clock = TimeStamp{FloatDuration{1}};
 
-  /* $PAAVS responses from XPDR must be ignored */
-  ok1(!device->ParseNMEA("$PAAVS,XPDR,7000,1,0,1697,0,0*68",nmea_info));
+  /* test XPDR response */
+  ok1(device->ParseNMEA("$PAAVS,XPDR,7000,1,0,1697,0,0*68",nmea_info));
+  ok1(nmea_info.settings.has_transponder_code);
+  ok1(equals(nmea_info.settings.transponder_code.GetCode(), 
+             TransponderCode{07000}.GetCode()));
+
+  nmea_info.Reset();
+  nmea_info.clock = TimeStamp{FloatDuration{1}};
+
+  ok1(!(device->ParseNMEA("$PAAVS,XPDR,9999,1,0,1697,0,0*6F",nmea_info)));
+  ok1(!(nmea_info.settings.transponder_code.IsDefined()));
 
   nmea_info.Reset();
   nmea_info.clock = TimeStamp{FloatDuration{1}};
@@ -1546,6 +1555,7 @@ TestDeclare(const struct DeviceRegister &driver)
   Waypoint wp(gp);
   wp.name = _T("Foo");
   wp.elevation = 123;
+  wp.has_elevation = true;
   declaration.Append(wp);
   declaration.Append(wp);
   declaration.Append(wp);
@@ -1612,7 +1622,7 @@ TestFlightList(const struct DeviceRegister &driver)
 
 int main()
 {
-  plan_tests(839);
+  plan_tests(843);
 
   TestGeneric();
   TestTasman();

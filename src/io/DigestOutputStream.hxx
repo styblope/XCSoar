@@ -20,7 +20,8 @@ public:
 	explicit DigestOutputStream(OutputStream &_next) noexcept
 		:next(_next) {}
 
-	void Final(void *dest) noexcept {
+	template<std::size_t size>
+	void Final(std::span<std::byte, size> dest) noexcept {
 		state.Final(dest);
 	}
 
@@ -29,8 +30,8 @@ public:
 	}
 
 	/* virtual methods from class OutputStream */
-	void Write(const void *data, size_t size) override {
-		next.Write(data, size);
-		state.Update(std::span<const std::byte>{(const std::byte *)data, size});
+	void Write(std::span<const std::byte> src) override {
+		next.Write(src);
+		state.Update(src);
 	}
 };

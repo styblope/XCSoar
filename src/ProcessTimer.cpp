@@ -8,7 +8,6 @@
 #include "Input/InputEvents.hpp"
 #include "Device/MultipleDevices.hpp"
 #include "Blackboard/DeviceBlackboard.hpp"
-#include "Components.hpp"
 #include "time/PeriodClock.hpp"
 #include "MainWindow.hpp"
 #include "PopupMessage.hpp"
@@ -22,6 +21,9 @@
 #include "net/client/tim/Glue.hpp"
 #include "ui/event/Idle.hpp"
 #include "Dialogs/Tracking/CloudEnableDialog.hpp"
+#include "Components.hpp"
+#include "NetComponents.hpp"
+#include "BackendComponents.hpp"
 
 static void
 MessageProcessTimer() noexcept
@@ -85,7 +87,7 @@ SystemProcessTimer() noexcept
 static void
 BlackboardProcessTimer() noexcept
 {
-  device_blackboard->ExpireWallClock();
+  backend_components->device_blackboard->ExpireWallClock();
   XCSoarInterface::ExchangeBlackboard();
 }
 
@@ -110,8 +112,8 @@ BallastDumpProcessTimer() noexcept
     // Plane is dry now -> disable ballast_timer
     settings_computer.polar.ballast_timer_active = false;
 
-  if (protected_task_manager != nullptr)
-    protected_task_manager->SetGlidePolar(glide_polar);
+  if (backend_components->protected_task_manager != nullptr)
+    backend_components->protected_task_manager->SetGlidePolar(glide_polar);
 }
 
 static void
@@ -179,7 +181,7 @@ CommonProcessTimer() noexcept
 static void
 ConnectionProcessTimer() noexcept
 {
-  if (devices == nullptr)
+  if (backend_components->devices == nullptr)
     return;
 
   static bool connected_last = false;
@@ -211,7 +213,7 @@ ConnectionProcessTimer() noexcept
   /* this OperationEnvironment instance must be persistent, because
      DeviceDescriptor::Open() is asynchronous */
   static QuietOperationEnvironment env;
-  devices->AutoReopen(env);
+  backend_components->devices->AutoReopen(env);
 }
 
 void
@@ -221,38 +223,40 @@ ProcessTimer() noexcept
 
   if (!is_simulator()) {
     // now check GPS status
-    if (devices != nullptr)
-      devices->Tick();
+    if (backend_components->devices != nullptr)
+      backend_components->devices->Tick();
 
     // also service replay logger
-    if (replay && replay->IsActive()) {
+    if (backend_components->replay && backend_components->replay->IsActive()) {
       if (CommonInterface::MovementDetected())
-        replay->Stop();
+        backend_components->replay->Stop();
     }
 
     ConnectionProcessTimer();
   } else {
     static PeriodClock m_clock;
 
-    if (replay && replay->IsActive()) {
+    if (backend_components->replay && backend_components->replay->IsActive()) {
       m_clock.Update();
     } else if (m_clock.Elapsed() >= std::chrono::seconds(1)) {
       m_clock.Update();
-      device_blackboard->ProcessSimulation();
+      backend_components->device_blackboard->ProcessSimulation();
     } else if (!m_clock.IsDefined())
       m_clock.Update();
   }
 
+  if (net_components != nullptr) {
 #ifdef HAVE_TRACKING
-  if (tracking != nullptr) {
-    tracking->SetSettings(CommonInterface::GetComputerSettings().tracking);
-    tracking->OnTimer(CommonInterface::Basic(), CommonInterface::Calculated());
-  }
+    if (net_components->tracking) {
+      net_components->tracking->SetSettings(CommonInterface::GetComputerSettings().tracking);
+      net_components->tracking->OnTimer(CommonInterface::Basic(), CommonInterface::Calculated());
+    }
 #endif
 
 #ifdef HAVE_HTTP
-  if (tim_glue != nullptr &&
-    CommonInterface::GetComputerSettings().weather.enable_tim)
-    tim_glue->OnTimer(CommonInterface::Basic());
+    if (net_components->tim != nullptr &&
+        CommonInterface::GetComputerSettings().weather.enable_tim)
+      net_components->tim->OnTimer(CommonInterface::Basic());
 #endif
+  }
 }
