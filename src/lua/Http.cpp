@@ -34,6 +34,7 @@ public:
   explicit LuaHttpRequest(const char *url)
     :easy(url), adapter(*this)
   {
+    Curl::Setup(easy);    
     adapter.Install(easy);
   }
 
